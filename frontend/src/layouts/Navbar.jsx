@@ -25,6 +25,10 @@ const Navbar = () => {
     }
   };
 
+  if (user && user.role === 'admin') {
+    return null;
+  }
+
   return (
     <nav className="glass" style={{
       borderRadius: '0',

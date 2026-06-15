@@ -6,12 +6,8 @@ import toast from 'react-hot-toast';
 const ManageReviews = () => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
 
-  // We fetch fields first, then iterate or have a special endpoint. 
-  // Let's call /admin/stats or just get fields and read their nested reviews, or search reviews.
-  // Wait, let's look at what endpoints we have for reviews.
-  // We have FieldController which returns fields with reviews, or we can fetch fields and gather reviews.
-  // Let's fetch fields and build a list of all reviews from them.
   const fetchReviews = async () => {
     setLoading(true);
     try {
@@ -50,7 +46,6 @@ const ManageReviews = () => {
       const res = await client.delete(`/admin/reviews/${id}`);
       if (res.data.success) {
         toast.success("Review deleted successfully.");
-        // filter local state
         setReviews(prev => prev.filter(r => r.id !== id));
       }
     } catch (err) {
@@ -59,13 +54,45 @@ const ManageReviews = () => {
     }
   };
 
+  const totalPages = Math.ceil(reviews.length / 10);
+  const paginatedReviews = reviews.slice((page - 1) * 10, page * 10);
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+    return (
+      <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '0 0.5rem' }}>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          Page {page} of {totalPages}
+        </span>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={() => setPage(page - 1)}
+            disabled={page === 1}
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => setPage(page + 1)}
+            disabled={page === totalPages}
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ animation: 'fadeIn 0.5s ease-out', textAlign: 'left' }}>
       <div style={{ marginBottom: '2.5rem' }}>
         <h1 style={{ fontSize: '2.25rem', fontWeight: '800', color: '#fff', margin: '0 0 0.5rem' }}>
           Manage Reviews
-          </h1>
-          <p style={{ color: 'var(--text-muted)' }}>Moderate public reviews, feedback ratings, and comments left by players</p>
+        </h1>
+        <p style={{ color: 'var(--text-muted)' }}>Moderate public reviews, feedback ratings, and comments left by players</p>
       </div>
 
       {loading ? (
@@ -87,54 +114,57 @@ const ManageReviews = () => {
           <p style={{ color: 'var(--text-muted)' }}>No feedback reviews have been posted yet.</p>
         </div>
       ) : (
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Field</th>
-                <th>Author</th>
-                <th>Rating</th>
-                <th>Comment</th>
-                <th>Date</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reviews.map((r) => (
-                <tr key={r.id}>
-                  <td><strong>{r.field_name}</strong></td>
-                  <td>{r.user?.name || 'Anonymous'}</td>
-                  <td>
-                    <div style={{ display: 'flex', color: '#fbbf24', gap: '2px' }}>
-                      {[...Array(5)].map((_, idx) => (
-                        <Star 
-                          key={idx} 
-                          size={12} 
-                          fill={idx < r.rating ? '#fbbf24' : 'none'} 
-                          color={idx < r.rating ? '#fbbf24' : '#4b5563'} 
-                        />
-                      ))}
-                    </div>
-                  </td>
-                  <td style={{ maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {r.comment}
-                  </td>
-                  <td>{new Date(r.created_at).toLocaleDateString()}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button 
-                      onClick={() => handleDelete(r.id)}
-                      className="btn btn-secondary" 
-                      style={{ padding: '0.4rem', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                      title="Delete Review"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
+        <>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Author</th>
+                  <th>Rating</th>
+                  <th>Comment</th>
+                  <th>Date</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {paginatedReviews.map((r) => (
+                  <tr key={r.id}>
+                    <td><strong>{r.field_name}</strong></td>
+                    <td>{r.user?.name || 'Anonymous'}</td>
+                    <td>
+                      <div style={{ display: 'flex', color: '#fbbf24', gap: '2px' }}>
+                        {[...Array(5)].map((_, idx) => (
+                          <Star 
+                            key={idx} 
+                            size={12} 
+                            fill={idx < r.rating ? '#fbbf24' : 'none'} 
+                            color={idx < r.rating ? '#fbbf24' : '#4b5563'} 
+                          />
+                        ))}
+                      </div>
+                    </td>
+                    <td style={{ maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {r.comment}
+                    </td>
+                    <td>{new Date(r.created_at).toLocaleDateString()}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button 
+                        onClick={() => handleDelete(r.id)}
+                        className="btn btn-secondary" 
+                        style={{ padding: '0.4rem', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
+                        title="Delete Review"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {renderPagination()}
+        </>
       )}
     </div>
   );

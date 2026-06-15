@@ -16,11 +16,12 @@ const UserDashboard = () => {
       try {
         const res = await client.get('/reservations');
         if (res.data.success) {
-          const bookings = res.data.data.data;
-          setRecentBookings(bookings.slice(0, 4));
+          const bookings = res.data.data.data || [];
+          const confirmedBookings = bookings.filter(b => b.status === 'confirmed');
+          setRecentBookings(confirmedBookings.slice(0, 4));
 
-          const total = bookings.length;
-          const upcoming = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length;
+          const total = confirmedBookings.length;
+          const upcoming = confirmedBookings.length;
 
           setStats({ totalBookings: total, upcomingBookings: upcoming });
         }

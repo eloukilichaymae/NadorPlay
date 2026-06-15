@@ -49,7 +49,7 @@ class FieldController extends Controller
             'price' => 'required|numeric|min:0',
             'surface' => 'required|string|max:255',
             'dimensions' => 'required|string|max:255',
-            'image' => 'nullable|string', // Or file upload base64/url
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:4096',
             'status' => 'nullable|string|in:available,maintenance,closed',
         ]);
 
@@ -60,7 +60,15 @@ class FieldController extends Controller
             ], 422);
         }
 
-        $field = Field::create($request->all());
+        $data = $request->all();
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('fields', 'public');
+            $data['image'] = '/storage/' . $path;
+        } else {
+            $data['image'] = null;
+        }
+
+        $field = Field::create($data);
 
         return response()->json([
             'success' => true,
@@ -108,7 +116,7 @@ class FieldController extends Controller
             'price' => 'required|numeric|min:0',
             'surface' => 'required|string|max:255',
             'dimensions' => 'required|string|max:255',
-            'image' => 'nullable|string',
+            'image' => 'nullable',
             'status' => 'nullable|string|in:available,maintenance,closed',
         ]);
 
@@ -119,7 +127,20 @@ class FieldController extends Controller
             ], 422);
         }
 
-        $field->update($request->all());
+        $data = $request->all();
+        if ($request->hasFile('image')) {
+            // Delete old image if exists
+            if ($field->image && Storage::disk('public')->exists(str_replace('/storage/', '', $field->image))) {
+                Storage::disk('public')->delete(str_replace('/storage/', '', $field->image));
+            }
+            $path = $request->file('image')->store('fields', 'public');
+            $data['image'] = '/storage/' . $path;
+        } else {
+            // Keep the old image
+            $data['image'] = $field->image;
+        }
+
+        $field->update($data);
 
         return response()->json([
             'success' => true,

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
+import { AuthContext } from '../context/AuthContext';
 
 // Layouts
 import Navbar from '../layouts/Navbar';
@@ -51,13 +52,17 @@ const PublicLayout = ({ children }) => (
 );
 
 // Protected layout wrapper with sidebar
-const PortalLayout = ({ children }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-    <Navbar />
-    <DashboardLayout>{children}</DashboardLayout>
-    <Footer />
-  </div>
-);
+const PortalLayout = ({ children }) => {
+  const { user } = useContext(AuthContext);
+  const isAdmin = user?.role === 'admin';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <Navbar />
+      <DashboardLayout>{children}</DashboardLayout>
+      {!isAdmin && <Footer />}
+    </div>
+  );
+};
 
 const AppRoutes = () => {
   return (

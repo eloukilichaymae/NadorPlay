@@ -7,13 +7,17 @@ import toast from 'react-hot-toast';
 const ManageFields = () => {
   const [fields, setFields] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const fetchFields = async () => {
+  const fetchFields = async (pageNumber = 1) => {
     setLoading(true);
     try {
-      const res = await client.get('/fields');
+      const res = await client.get(`/fields?page=${pageNumber}`);
       if (res.data.success) {
-        setFields(res.data.data.data);
+        setFields(res.data.data.data || []);
+        setPage(res.data.data.current_page || 1);
+        setTotalPages(res.data.data.last_page || 1);
       }
     } catch (err) {
       console.error(err);
@@ -24,8 +28,8 @@ const ManageFields = () => {
   };
 
   useEffect(() => {
-    fetchFields();
-  }, []);
+    fetchFields(page);
+  }, [page]);
 
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this field? This action is permanent.")) return;
@@ -34,12 +38,41 @@ const ManageFields = () => {
       const res = await client.delete(`/fields/${id}`);
       if (res.data.success) {
         toast.success("Field deleted successfully.");
-        fetchFields();
+        fetchFields(page);
       }
     } catch (err) {
       console.error(err);
       toast.error("Failed to delete field.");
     }
+  };
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+    return (
+      <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '0 0.5rem' }}>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          Page {page} of {totalPages}
+        </span>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={() => setPage(page - 1)}
+            disabled={page === 1}
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => setPage(page + 1)}
+            disabled={page === totalPages}
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -75,63 +108,66 @@ const ManageFields = () => {
           <p style={{ color: 'var(--text-muted)' }}>Get started by adding a sports pitch field to the system.</p>
         </div>
       ) : (
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Image</th>
-                <th>Name</th>
-                <th>Location</th>
-                <th>Surface</th>
-                <th>Hourly Price</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fields.map((field) => (
-                <tr key={field.id}>
-                  <td>
-                    <img 
-                      src={field.image || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80'} 
-                      alt={field.name} 
-                      style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: '4px' }} 
-                    />
-                  </td>
-                  <td><strong>{field.name}</strong></td>
-                  <td>{field.location}</td>
-                  <td>{field.surface}</td>
-                  <td>{field.price} MAD</td>
-                  <td>
-                    <span className={`badge ${field.status === 'available' ? 'badge-success' : 'badge-danger'}`}>
-                      {field.status}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
-                      <Link 
-                        to={`/admin/fields/edit/${field.id}`} 
-                        className="btn btn-secondary" 
-                        style={{ padding: '0.4rem', border: 'none', background: 'rgba(255,255,255,0.05)' }}
-                        title="Edit Field"
-                      >
-                        <Edit2 size={16} />
-                      </Link>
-                      <button 
-                        onClick={() => handleDelete(field.id)}
-                        className="btn btn-secondary" 
-                        style={{ padding: '0.4rem', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                        title="Delete Field"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+        <>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Image</th>
+                  <th>Name</th>
+                  <th>Location</th>
+                  <th>Surface</th>
+                  <th>Hourly Price</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {fields.map((field) => (
+                  <tr key={field.id}>
+                    <td>
+                      <img 
+                        src={field.image || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80'} 
+                        alt={field.name} 
+                        style={{ width: '50px', height: '35px', objectFit: 'cover', borderRadius: '4px' }} 
+                      />
+                    </td>
+                    <td><strong>{field.name}</strong></td>
+                    <td>{field.location}</td>
+                    <td>{field.surface}</td>
+                    <td>{field.price} MAD</td>
+                    <td>
+                      <span className={`badge ${field.status === 'available' ? 'badge-success' : 'badge-danger'}`}>
+                        {field.status}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                        <Link 
+                          to={`/admin/fields/edit/${field.id}`} 
+                          className="btn btn-secondary" 
+                          style={{ padding: '0.4rem', border: 'none', background: 'rgba(255,255,255,0.05)' }}
+                          title="Edit Field"
+                        >
+                          <Edit2 size={16} />
+                        </Link>
+                        <button 
+                          onClick={() => handleDelete(field.id)}
+                          className="btn btn-secondary" 
+                          style={{ padding: '0.4rem', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
+                          title="Delete Field"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {renderPagination()}
+        </>
       )}
     </div>
   );

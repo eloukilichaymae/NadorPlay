@@ -32,7 +32,7 @@ class ReservationController extends Controller
             $query->where('date', $request->date);
         }
 
-        $reservations = $query->latest()->paginate(15);
+        $reservations = $query->latest()->paginate(10);
 
         return response()->json([
             'success' => true,
@@ -61,6 +61,15 @@ class ReservationController extends Controller
         $date = $request->date;
         $time = $request->time;
         $duration = $request->duration;
+
+        // Enforce time validation if date is today
+        $selectedDateTime = Carbon::parse($date . ' ' . $time);
+        if ($selectedDateTime->isToday() && $selectedDateTime->lt(Carbon::now())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The selected reservation time has already passed.'
+            ], 400);
+        }
 
         // Conflict detection
         $newStart = Carbon::parse($date . ' ' . $time);
@@ -92,8 +101,6 @@ class ReservationController extends Controller
             }
         }
 
-        // Generate temporary mock QR code content: JSON with reservation particulars
-        // QR format: ReservationID_FieldID_UserID_Hash
         $user = $request->user();
         $reservation = Reservation::create([
             'user_id' => $user->id,
@@ -103,29 +110,20 @@ class ReservationController extends Controller
             'duration' => $duration,
             'number_of_players' => $request->number_of_players,
             'status' => 'pending',
-            'payment_status' => 'pending',
+            'payment_status' => 'unpaid',
+            'qr_code' => null, // Do NOT generate QR code on creation
         ]);
-
-        // Generate actual QR payload
-        $qrPayload = json_encode([
-            'reservation_id' => $reservation->id,
-            'field_id' => $fieldId,
-            'user_id' => $user->id,
-            'code' => md5($reservation->id . $fieldId . $user->id . 'NadorPlaySecretSalt')
-        ]);
-
-        $reservation->update(['qr_code' => $qrPayload]);
 
         // Trigger Notification
         Notification::create([
             'user_id' => $user->id,
             'title' => 'Reservation Created',
-            'message' => "Your reservation for {$field->name} on {$date} at {$time} has been registered and is pending payment."
+            'message' => "Your reservation for {$field->name} on {$date} at {$time} has been registered and is pending approval."
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Reservation created successfully. Please complete the payment.',
+            'message' => 'Reservation created successfully. Awaiting administrator approval.',
             'data' => $reservation->load('field')
         ], 201);
     }
@@ -201,6 +199,63 @@ class ReservationController extends Controller
         ]);
     }
 
+    public function approve(Request $request, $id)
+    {
+        $user = $request->user();
+        if ($user->role !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only administrators can approve reservations.'
+            ], 403);
+        }
+
+        $reservation = Reservation::with(['field', 'user'])->find($id);
+
+        if (!$reservation) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Reservation not found'
+            ], 404);
+        }
+
+        if ($reservation->status === 'cancelled') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot approve a cancelled reservation.'
+            ], 400);
+        }
+
+        // Generate the reservation QR Code with details
+        $qrPayload = json_encode([
+            'Reservation ID' => $reservation->id,
+            'Client Name' => $reservation->user->name,
+            'Field Name' => $reservation->field->name,
+            'Date' => $reservation->date->format('Y-m-d'),
+            'Time' => $reservation->time,
+            'Duration' => $reservation->duration,
+            'Status' => 'confirmed'
+        ]);
+
+        $reservation->update([
+            'status' => 'confirmed',
+            'payment_status' => 'paid',
+            'qr_code' => $qrPayload
+        ]);
+
+        // Send/display a notification to the client
+        Notification::create([
+            'user_id' => $reservation->user_id,
+            'title' => 'Reservation Approved',
+            'message' => 'Your reservation has been accepted.'
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Reservation approved successfully.',
+            'data' => $reservation
+        ]);
+    }
+
     public function verifyQr(Request $request)
     {
         // Guards and Admins only
@@ -225,23 +280,23 @@ class ReservationController extends Controller
 
         $data = json_decode($request->qr_payload, true);
 
-        if (!$data || !isset($data['reservation_id']) || !isset($data['field_id']) || !isset($data['user_id']) || !isset($data['code'])) {
+        $reservationId = null;
+        if ($data) {
+            if (isset($data['Reservation ID'])) {
+                $reservationId = $data['Reservation ID'];
+            } elseif (isset($data['reservation_id'])) {
+                $reservationId = $data['reservation_id'];
+            }
+        }
+
+        if (!$reservationId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid QR Code structure.'
+                'message' => 'Invalid QR Code structure. Reservation ID not found.'
             ], 400);
         }
 
-        // Validate hash code to prevent spoofing
-        $expectedHash = md5($data['reservation_id'] . $data['field_id'] . $data['user_id'] . 'NadorPlaySecretSalt');
-        if ($data['code'] !== $expectedHash) {
-            return response()->json([
-                'success' => false,
-                'message' => 'QR Code verification signature failed. Access Denied.'
-            ], 400);
-        }
-
-        $reservation = Reservation::with(['user', 'field'])->find($data['reservation_id']);
+        $reservation = Reservation::with(['user', 'field'])->find($reservationId);
 
         if (!$reservation) {
             return response()->json([

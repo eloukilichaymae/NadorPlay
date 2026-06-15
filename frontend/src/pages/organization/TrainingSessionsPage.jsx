@@ -6,36 +6,44 @@ import toast from 'react-hot-toast';
 const TrainingSessionsPage = () => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const fetchSessions = async (pageNumber = 1) => {
+    setLoading(true);
+    try {
+      const res = await client.get(`/subscriptions?page=${pageNumber}`);
+      if (res.data.success) {
+        const subscriptionsArray = res.data.data.data || [];
+        setPage(res.data.data.current_page || 1);
+        setTotalPages(res.data.data.last_page || 1);
+
+        const activeSubs = subscriptionsArray.filter(s => s.status === 'active');
+        const allSessions = [];
+        activeSubs.forEach(sub => {
+          if (sub.sessions && sub.sessions.length > 0) {
+            sub.sessions.forEach(sess => {
+              allSessions.push({
+                ...sess,
+                field_name: sub.field?.name,
+                end_date: sub.end_date
+              });
+            });
+          }
+        });
+        setSessions(allSessions);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load academy schedules.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchSessions = async () => {
-      try {
-        const res = await client.get('/subscriptions');
-        if (res.data.success) {
-          const activeSubs = res.data.data.filter(s => s.status === 'active');
-          const allSessions = [];
-          activeSubs.forEach(sub => {
-            if (sub.sessions && sub.sessions.length > 0) {
-              sub.sessions.forEach(sess => {
-                allSessions.push({
-                  ...sess,
-                  field_name: sub.field?.name,
-                  end_date: sub.end_date
-                });
-              });
-            }
-          });
-          setSessions(allSessions);
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to load academy schedules.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSessions();
-  }, []);
+    fetchSessions(page);
+  }, [page]);
 
   const daysOfWeekMap = {
     1: 'Monday',
@@ -45,6 +53,35 @@ const TrainingSessionsPage = () => {
     5: 'Friday',
     6: 'Saturday',
     7: 'Sunday'
+  };
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+    return (
+      <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '0 0.5rem' }}>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          Page {page} of {totalPages}
+        </span>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={() => setPage(page - 1)}
+            disabled={page === 1}
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => setPage(page + 1)}
+            disabled={page === totalPages}
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -75,36 +112,39 @@ const TrainingSessionsPage = () => {
           <p style={{ color: 'var(--text-muted)' }}>You do not have any active training sessions. Please make sure you have an active paid subscription.</p>
         </div>
       ) : (
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Day of Week</th>
-                <th>Session Time</th>
-                <th>Sports Field</th>
-                <th>Contract Expiry Date</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.map((sess) => (
-                <tr key={sess.id}>
-                  <td><strong>{daysOfWeekMap[sess.day_of_week]}</strong></td>
-                  <td>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Clock size={14} color="var(--primary)" /> {sess.session_time.substring(0, 5)}
-                    </span>
-                  </td>
-                  <td>{sess.field_name}</td>
-                  <td>{new Date(sess.end_date).toLocaleDateString()}</td>
-                  <td>
-                    <span className="badge badge-success">Active slot</span>
-                  </td>
+        <>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Day of Week</th>
+                  <th>Session Time</th>
+                  <th>Sports Field</th>
+                  <th>Contract Expiry Date</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {sessions.map((sess) => (
+                  <tr key={sess.id}>
+                    <td><strong>{daysOfWeekMap[sess.day_of_week]}</strong></td>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Clock size={14} color="var(--primary)" /> {sess.session_time.substring(0, 5)}
+                      </span>
+                    </td>
+                    <td>{sess.field_name}</td>
+                    <td>{new Date(sess.end_date).toLocaleDateString()}</td>
+                    <td>
+                      <span className="badge badge-success">Active slot</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {renderPagination()}
+        </>
       )}
     </div>
   );

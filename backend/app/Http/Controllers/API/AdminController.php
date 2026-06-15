@@ -25,12 +25,26 @@ class AdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        if (!$startDate || !$endDate) {
+            // Default to last 7 days (including today)
+            $startDate = now()->subDays(6)->toDateString();
+            $endDate = now()->toDateString();
+        }
+
         $totalUsers = User::count();
-        $totalReservations = Reservation::count();
-        $totalRevenue = Payment::where('status', 'paid')->sum('amount');
+        $totalReservations = Reservation::whereBetween('date', [$startDate, $endDate])->count();
+        $totalRevenue = Payment::where('status', 'paid')
+            ->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->sum('amount');
         
-        // Popular fields (field with reservation count)
-        $popularFields = Field::leftJoin('reservations', 'fields.id', '=', 'reservations.field_id')
+        // Popular fields (field with reservation count in date range)
+        $popularFields = Field::leftJoin('reservations', function($join) use ($startDate, $endDate) {
+                $join->on('fields.id', '=', 'reservations.field_id')
+                     ->whereBetween('reservations.date', [$startDate, $endDate]);
+            })
             ->select('fields.id', 'fields.name', DB::raw('count(reservations.id) as reservations_count'))
             ->groupBy('fields.id', 'fields.name')
             ->orderByDesc('reservations_count')
@@ -38,25 +52,24 @@ class AdminController extends Controller
             ->get();
 
         // Peak Hours
-        $peakHours = Reservation::select(DB::raw('strftime("%H:00", time) as hour_slot'), DB::raw('count(*) as count'))
-            ->groupBy('hour_slot')
-            ->orderByDesc('count')
-            ->limit(5)
-            ->get();
-
-        // If running in SQLite, strftime is correct. If MySQL, use DATE_FORMAT.
-        // Let's make it compatible or fallback.
+        $queryPeak = Reservation::whereBetween('date', [$startDate, $endDate]);
         if (config('database.default') === 'mysql') {
-            $peakHours = Reservation::select(DB::raw('DATE_FORMAT(time, "%H:00") as hour_slot'), DB::raw('count(*) as count'))
+            $peakHours = $queryPeak->select(DB::raw('DATE_FORMAT(time, "%H:00") as hour_slot'), DB::raw('count(*) as count'))
+                ->groupBy('hour_slot')
+                ->orderByDesc('count')
+                ->limit(5)
+                ->get();
+        } else {
+            $peakHours = $queryPeak->select(DB::raw('strftime("%H:00", time) as hour_slot'), DB::raw('count(*) as count'))
                 ->groupBy('hour_slot')
                 ->orderByDesc('count')
                 ->limit(5)
                 ->get();
         }
 
-        // Daily Reservation Statistics for the last 7 days
+        // Daily Reservation Statistics in range
         $reservationChart = Reservation::select(DB::raw('date'), DB::raw('count(*) as count'))
-            ->where('date', '>=', now()->subDays(7)->toDateString())
+            ->whereBetween('date', [$startDate, $endDate])
             ->groupBy('date')
             ->get();
 
@@ -101,7 +114,7 @@ class AdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
-        $users = User::latest()->paginate(15);
+        $users = User::latest()->paginate(10);
         return response()->json([
             'success' => true,
             'data' => $users

@@ -151,4 +151,39 @@ class SubscriptionController extends Controller
             'data' => $subscription
         ]);
     }
+
+    public function approve(Request $request, $id)
+    {
+        $user = $request->user();
+        if ($user->role !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only administrators can approve subscriptions.'
+            ], 403);
+        }
+
+        $subscription = Subscription::with(['field', 'organization'])->find($id);
+
+        if (!$subscription) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subscription not found'
+            ], 404);
+        }
+
+        $subscription->update(['status' => 'active']);
+
+        // Notify organization
+        Notification::create([
+            'user_id' => $subscription->organization_id,
+            'title' => 'Subscription Activated',
+            'message' => "Your academy subscription for {$subscription->field->name} has been activated by the administrator."
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Subscription activated successfully.',
+            'data' => $subscription
+        ]);
+    }
 }

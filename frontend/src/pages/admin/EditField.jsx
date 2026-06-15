@@ -14,7 +14,8 @@ const EditField = () => {
   const [price, setPrice] = useState('');
   const [surface, setSurface] = useState('Natural Grass');
   const [dimensions, setDimensions] = useState('100x60m');
-  const [image, setImage] = useState('');
+  const [image, setImage] = useState(null);
+  const [existingImage, setExistingImage] = useState('');
   const [status, setStatus] = useState('available');
   
   const [loading, setLoading] = useState(true);
@@ -32,7 +33,7 @@ const EditField = () => {
           setPrice(field.price);
           setSurface(field.surface);
           setDimensions(field.dimensions);
-          setImage(field.image || '');
+          setExistingImage(field.image || '');
           setStatus(field.status);
         }
       } catch (err) {
@@ -49,16 +50,24 @@ const EditField = () => {
     e.preventDefault();
     setSaveLoading(true);
 
+    const formData = new FormData();
+    formData.append('_method', 'PUT');
+    formData.append('name', name);
+    formData.append('location', location);
+    formData.append('description', description);
+    formData.append('price', parseFloat(price));
+    formData.append('surface', surface);
+    formData.append('dimensions', dimensions);
+    formData.append('status', status);
+    if (image) {
+      formData.append('image', image);
+    }
+
     try {
-      const res = await client.put(`/fields/${id}`, {
-        name,
-        location,
-        description,
-        price: parseFloat(price),
-        surface,
-        dimensions,
-        image,
-        status
+      const res = await client.post(`/fields/${id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       });
 
       if (res.data.success) {
@@ -169,13 +178,18 @@ const EditField = () => {
 
           <div className="grid-cols-2" style={{ gap: '1.5rem' }}>
             <div className="form-group">
-              <label className="form-label">Image URL</label>
+              <label className="form-label">Upload New Image</label>
               <input
-                type="url"
+                type="file"
+                accept="image/*"
                 className="form-input"
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
+                onChange={(e) => setImage(e.target.files[0])}
               />
+              {existingImage && !image && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
+                  Has active image. Uploading a new one will replace it.
+                </span>
+              )}
             </div>
 
             <div className="form-group">

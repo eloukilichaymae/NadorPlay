@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reservations', [ReservationController::class, 'store']);
     Route::get('/reservations/{id}', [ReservationController::class, 'show']);
     Route::post('/reservations/{id}/cancel', [ReservationController::class, 'cancel']);
+    Route::post('/reservations/{id}/approve', [ReservationController::class, 'approve']);
     Route::post('/reservations/verify-qr', [ReservationController::class, 'verifyQr']);
 
     // Reviews
@@ -48,6 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/subscriptions', [SubscriptionController::class, 'store']);
     Route::get('/subscriptions/{id}', [SubscriptionController::class, 'show']);
     Route::post('/subscriptions/{id}/cancel', [SubscriptionController::class, 'cancel']);
+    Route::post('/subscriptions/{id}/approve', [SubscriptionController::class, 'approve']);
 
     // Payments
     Route::post('/payments/process', [PaymentController::class, 'processPayment']);

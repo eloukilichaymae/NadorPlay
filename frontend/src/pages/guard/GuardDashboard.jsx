@@ -7,26 +7,58 @@ import toast from 'react-hot-toast';
 const GuardDashboard = () => {
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const fetchAttendance = async (pageNumber = 1) => {
+    setLoading(true);
+    try {
+      const res = await client.get(`/reservations?status=attended&page=${pageNumber}`);
+      if (res.data.success) {
+        setAttendance(res.data.data.data || []);
+        setPage(res.data.data.current_page || 1);
+        setTotalPages(res.data.data.last_page || 1);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load attendance logs.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchAttendance = async () => {
-      try {
-        const res = await client.get('/reservations');
-        if (res.data.success) {
-          // Filter attended reservations for today
-          const todayStr = new Date().toISOString().split('T')[0];
-          const todayAttended = res.data.data.data.filter(r => r.status === 'attended');
-          setAttendance(todayAttended);
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to load attendance logs.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAttendance();
-  }, []);
+    fetchAttendance(page);
+  }, [page]);
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+    return (
+      <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem' }}>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          Page {page} of {totalPages}
+        </span>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={() => setPage(page - 1)}
+            disabled={page === 1}
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => setPage(page + 1)}
+            disabled={page === totalPages}
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ animation: 'fadeIn 0.5s ease-out', textAlign: 'left' }}>
@@ -77,32 +109,35 @@ const GuardDashboard = () => {
         ) : attendance.length === 0 ? (
           <p style={{ color: 'var(--text-muted)' }}>No players have been checked in today yet.</p>
         ) : (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Reservation ID</th>
-                  <th>Player Name</th>
-                  <th>Field</th>
-                  <th>Scheduled Time</th>
-                  <th>Check-In Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendance.map((att) => (
-                  <tr key={att.id}>
-                    <td>#{att.id}</td>
-                    <td><strong>{att.user?.name}</strong></td>
-                    <td>{att.field?.name}</td>
-                    <td>{att.time} ({att.duration} hr)</td>
-                    <td>
-                      <span className="badge badge-success">Checked In</span>
-                    </td>
+          <>
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Reservation ID</th>
+                    <th>Player Name</th>
+                    <th>Field</th>
+                    <th>Scheduled Time</th>
+                    <th>Check-In Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {attendance.map((att) => (
+                    <tr key={att.id}>
+                      <td>#{att.id}</td>
+                      <td><strong>{att.user?.name}</strong></td>
+                      <td>{att.field?.name}</td>
+                      <td>{att.time} ({att.duration} hr)</td>
+                      <td>
+                        <span className="badge badge-success">Checked In</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {renderPagination()}
+          </>
         )}
       </div>
     </div>

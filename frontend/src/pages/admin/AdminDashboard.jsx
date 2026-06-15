@@ -5,25 +5,43 @@ import { Users, CalendarCheck, DollarSign, Star, TrendingUp, Clock } from 'lucid
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
+  const getPastDateString = (daysAgo) => {
+    const d = new Date();
+    d.setDate(d.getDate() - daysAgo);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const [startDate, setStartDate] = useState(getPastDateString(6));
+  const [endDate, setEndDate] = useState(getPastDateString(0));
   const [statsData, setStatsData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchAdminStats = async () => {
-      try {
-        const res = await client.get('/admin/stats');
-        if (res.data.success) {
-          setStatsData(res.data.data);
+  const fetchAdminStats = async () => {
+    setLoading(true);
+    try {
+      const res = await client.get('/admin/stats', {
+        params: {
+          start_date: startDate,
+          end_date: endDate
         }
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to load admin analytics.");
-      } finally {
-        setLoading(false);
+      });
+      if (res.data.success) {
+        setStatsData(res.data.data);
       }
-    };
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load admin analytics.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchAdminStats();
-  }, []);
+  }, [startDate, endDate]);
 
   if (loading) {
     return (
@@ -49,6 +67,36 @@ const AdminDashboard = () => {
           Municipality Analytics
         </h1>
         <p style={{ color: 'var(--text-muted)' }}>Real-time indicators of sports facilities, reservations, and municipal revenue</p>
+      </div>
+
+      {/* Date Range Selector */}
+      <div className="glass" style={{ padding: '1.5rem', marginBottom: '2.5rem', display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h3 style={{ color: '#fff', margin: 0, fontSize: '1.1rem' }}>Filter Analytics</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0 0' }}>Select custom date ranges to filter reservation metrics</p>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Start Date</label>
+            <input 
+              type="date" 
+              className="form-input" 
+              style={{ width: '160px', padding: '0.5rem' }} 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)} 
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>End Date</label>
+            <input 
+              type="date" 
+              className="form-input" 
+              style={{ width: '160px', padding: '0.5rem' }} 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)} 
+            />
+          </div>
+        </div>
       </div>
 
       {/* Metrics Grid */}
@@ -127,17 +175,6 @@ const AdminDashboard = () => {
               </div>
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Admin Quick Actions */}
-      <div className="glass" style={{ padding: '2rem' }}>
-        <h3 style={{ color: '#fff', marginBottom: '1.5rem' }}>Administrative Tools</h3>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <Link to="/admin/fields" className="btn btn-secondary">Fields Management</Link>
-          <Link to="/admin/fields/add" className="btn btn-primary">Add New Sports Field</Link>
-          <Link to="/admin/users" className="btn btn-secondary">Users & Roles</Link>
-          <Link to="/admin/reviews" className="btn btn-secondary">Reviews Moderation</Link>
         </div>
       </div>
     </div>

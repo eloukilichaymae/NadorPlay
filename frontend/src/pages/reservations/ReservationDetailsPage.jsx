@@ -131,21 +131,27 @@ const ReservationDetailsPage = () => {
           </p>
 
           {/* QR Code Container */}
-          <div style={{
-            background: '#fff',
-            padding: '1.5rem',
-            borderRadius: '16px',
-            display: 'inline-block',
-            marginBottom: '2rem',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-            border: isPaid ? '4px solid var(--primary)' : '4px solid #9ca3af'
-          }}>
-            {reservation.qr_code ? (
-              <QRCodeSVG value={reservation.qr_code} size={180} />
-            ) : (
-              <p style={{ color: '#000' }}>QR code pending...</p>
-            )}
-          </div>
+          {reservation.status === 'confirmed' || reservation.status === 'attended' ? (
+            <div style={{
+              background: '#fff',
+              padding: '1.5rem',
+              borderRadius: '16px',
+              display: 'inline-block',
+              marginBottom: '2rem',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+              border: isPaid ? '4px solid var(--primary)' : '4px solid #9ca3af'
+            }}>
+              {reservation.qr_code ? (
+                <QRCodeSVG value={reservation.qr_code} size={180} />
+              ) : (
+                <p style={{ color: '#000' }}>QR code pending...</p>
+              )}
+            </div>
+          ) : (
+            <div className="glass" style={{ padding: '1.5rem', borderRadius: '12px', display: 'inline-block', marginBottom: '2rem', border: '1px dashed var(--border-color)', color: 'var(--text-muted)' }}>
+              <p style={{ margin: 0, fontSize: '0.9rem' }}>QR Code pass will be displayed here once confirmed by the administrator.</p>
+            </div>
+          )}
 
           <div style={{ textAlign: 'left', marginBottom: '2rem' }}>
             <h3 style={{ color: '#fff', fontSize: '1.2rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
@@ -171,7 +177,10 @@ const ReservationDetailsPage = () => {
               </div>
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block' }}>Payment Status</span>
-                <span className={`badge ${isPaid ? 'badge-success' : 'badge-pending'}`}>
+                <span className={`badge ${
+                  reservation.payment_status === 'paid' ? 'badge-success' :
+                  reservation.payment_status === 'unpaid' ? 'badge-danger' : 'badge-pending'
+                }`}>
                   {reservation.payment_status}
                 </span>
               </div>
@@ -237,110 +246,53 @@ const ReservationDetailsPage = () => {
               </p>
             </div>
           ) : (
-            /* Payment Gateway Simulator */
-            <div className="glass" style={{ padding: '2.5rem', textAlign: 'left' }}>
+            /* Offline Payment Instructions */
+            <div className="glass" style={{ padding: '2.5rem', textAlign: 'left', borderColor: 'var(--primary)', borderStyle: 'dashed' }}>
               <h3 style={{ color: '#fff', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <CreditCard size={22} color="var(--primary)" /> Secure Checkout
+                <CreditCard size={22} color="var(--primary)" /> Bank Transfer Instructions (Offline Payment)
               </h3>
 
               <div style={{ marginBottom: '1.5rem' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Amount to Pay:</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Total Amount to Transfer:</span>
                 <h2 style={{ color: '#fff', fontSize: '2.25rem', fontWeight: '800' }}>{totalAmount} MAD</h2>
               </div>
 
-              <form onSubmit={handlePaymentSubmit}>
-                
-                {/* Provider Tabs */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                  {['cmi', 'stripe', 'paypal'].map(prov => (
-                    <button
-                      key={prov}
-                      type="button"
-                      className={`btn ${paymentProvider === prov ? 'btn-primary' : 'btn-secondary'}`}
-                      style={{ fontSize: '0.8rem', textTransform: 'uppercase', padding: '0.5rem' }}
-                      onClick={() => setPaymentProvider(prov)}
-                    >
-                      {prov}
-                    </button>
-                  ))}
-                </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>
+                To validate and activate your reservation, please execute a bank transfer to the organization's bank account with the details below. Once verified, the administrator will approve your reservation.
+              </p>
 
-                <div className="form-group">
-                  <label className="form-label">Name on Card</label>
-                  <input
-                    type="text"
-                    required
-                    className="form-input"
-                    placeholder="e.g. Hassan El Nadori"
-                    value={cardName}
-                    onChange={(e) => setCardName(e.target.value)}
-                  />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', backgroundColor: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Account Holder:</span>
+                  <strong style={{ color: '#fff' }}>NadorPlay SARL</strong>
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">Card Number</label>
-                  <input
-                    type="text"
-                    required
-                    maxLength={19}
-                    className="form-input"
-                    placeholder="4000 1234 5678 9010"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value)}
-                  />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Bank Name:</span>
+                  <strong style={{ color: '#fff' }}>Banque Populaire</strong>
                 </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Expiry Date</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="MM/YY"
-                      maxLength={5}
-                      className="form-input"
-                      value={cardExpiry}
-                      onChange={(e) => setCardExpiry(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">CVC</label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={4}
-                      placeholder="123"
-                      className="form-input"
-                      value={cardCVC}
-                      onChange={(e) => setCardCVC(e.target.value)}
-                    />
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', flexDirection: 'column', gap: '0.25rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>RIB:</span>
+                  <strong style={{ color: 'var(--primary)', letterSpacing: '1px', fontFamily: 'monospace', fontSize: '0.95rem' }}>1234 5678 9012 3456 7890 1234</strong>
                 </div>
-
-                {/* Simulated State Toggle (Success/Failure testing) */}
-                <div className="form-group" style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '8px', border: '1px dashed var(--border-color)', marginBottom: '1.5rem' }}>
-                  <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.25rem' }}>SIMULATED GATEWAY OUTCOME</label>
-                  <div style={{ display: 'flex', gap: '1rem' }}>
-                    <label style={{ fontSize: '0.85rem', color: '#34d399', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <input type="radio" name="outcome" value="success" checked={simulatedStatus === 'success'} onChange={() => setSimulatedStatus('success')} />
-                      Simulate Success
-                    </label>
-                    <label style={{ fontSize: '0.85rem', color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <input type="radio" name="outcome" value="fail" checked={simulatedStatus === 'fail'} onChange={() => setSimulatedStatus('fail')} />
-                      Simulate Decline
-                    </label>
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>SWIFT Code:</span>
+                  <strong style={{ color: '#fff' }}>BCOPMA21XXXX</strong>
                 </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Reference Code:</span>
+                  <strong style={{ color: '#fbbf24', letterSpacing: '1px', fontSize: '1rem' }}>NP-REF-{reservation.id}</strong>
+                </div>
+              </div>
 
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  style={{ width: '100%', padding: '0.8rem' }}
-                  disabled={paymentLoading}
-                >
-                  {paymentLoading ? 'Authorizing Payment...' : `Pay ${totalAmount} MAD`}
-                </button>
-              </form>
+              <div className="glass" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', backgroundColor: 'rgba(251, 191, 36, 0.05)', borderColor: 'rgba(251, 191, 36, 0.2)' }}>
+                <ShieldAlert size={24} color="#fbbf24" />
+                <div>
+                  <h4 style={{ color: '#fff', fontSize: '0.85rem' }}>Important Notice</h4>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', lineHeight: '1.4' }}>
+                    Make sure to include the Reference Code in the description of your bank transfer. Approvals are completed manually within 24 hours.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -21,6 +21,55 @@ const FieldDetailsPage = () => {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState('');
 
+  const getLocalTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const allTimeSlots = [
+    { value: "08:00", label: "08:00 AM" },
+    { value: "09:00", label: "09:00 AM" },
+    { value: "10:00", label: "10:00 AM" },
+    { value: "11:00", label: "11:00 AM" },
+    { value: "12:00", label: "12:00 PM" },
+    { value: "13:00", label: "01:00 PM" },
+    { value: "14:00", label: "02:00 PM" },
+    { value: "15:00", label: "03:00 PM" },
+    { value: "16:00", label: "04:00 PM" },
+    { value: "17:00", label: "05:00 PM" },
+    { value: "18:00", label: "06:00 PM" },
+    { value: "19:00", label: "07:00 PM" },
+    { value: "20:00", label: "08:00 PM" },
+    { value: "21:00", label: "09:00 PM" },
+    { value: "22:00", label: "10:00 PM" }
+  ];
+
+  const filteredSlots = React.useMemo(() => {
+    const todayStr = getLocalTodayString();
+    if (bookingDate !== todayStr) {
+      return allTimeSlots;
+    }
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+
+    return allTimeSlots.filter(slot => {
+      const [slotHours, slotMinutes] = slot.value.split(':').map(Number);
+      if (slotHours > currentHours) return true;
+      if (slotHours === currentHours && slotMinutes > currentMinutes) return true;
+      return false;
+    });
+  }, [bookingDate]);
+
+  useEffect(() => {
+    if (bookingTime && !filteredSlots.some(slot => slot.value === bookingTime)) {
+      setBookingTime('');
+    }
+  }, [bookingDate, filteredSlots]);
+
   useEffect(() => {
     const fetchFieldDetails = async () => {
       try {
@@ -59,7 +108,7 @@ const FieldDetailsPage = () => {
       });
 
       if (res.data.success) {
-        toast.success("Reservation created! Please complete payment.");
+        toast.success("Reservation created successfully!");
         navigate(`/reservations/${res.data.data.id}`);
       }
     } catch (err) {
@@ -225,7 +274,7 @@ const FieldDetailsPage = () => {
                   <input
                     type="date"
                     required
-                    min={new Date().toISOString().split('T')[0]}
+                    min={getLocalTodayString()}
                     className="form-input"
                     style={{ paddingLeft: '2.5rem' }}
                     value={bookingDate}
@@ -246,21 +295,9 @@ const FieldDetailsPage = () => {
                     onChange={(e) => setBookingTime(e.target.value)}
                   >
                     <option value="">Choose Time Slot</option>
-                    <option value="08:00">08:00 AM</option>
-                    <option value="09:00">09:00 AM</option>
-                    <option value="10:00">10:00 AM</option>
-                    <option value="11:00">11:00 AM</option>
-                    <option value="12:00">12:00 PM</option>
-                    <option value="13:00">01:00 PM</option>
-                    <option value="14:00">02:00 PM</option>
-                    <option value="15:00">03:00 PM</option>
-                    <option value="16:00">04:00 PM</option>
-                    <option value="17:00">05:00 PM</option>
-                    <option value="18:00">06:00 PM</option>
-                    <option value="19:00">07:00 PM</option>
-                    <option value="20:00">08:00 PM</option>
-                    <option value="21:00">09:00 PM</option>
-                    <option value="22:00">10:00 PM</option>
+                    {filteredSlots.map(slot => (
+                      <option key={slot.value} value={slot.value}>{slot.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>

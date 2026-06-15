@@ -13,7 +13,7 @@ const AddField = () => {
   const [price, setPrice] = useState('');
   const [surface, setSurface] = useState('Natural Grass');
   const [dimensions, setDimensions] = useState('100x60m');
-  const [image, setImage] = useState('');
+  const [image, setImage] = useState(null);
   const [status, setStatus] = useState('available');
   const [loading, setLoading] = useState(false);
 
@@ -21,16 +21,23 @@ const AddField = () => {
     e.preventDefault();
     setLoading(true);
 
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('location', location);
+    formData.append('description', description);
+    formData.append('price', parseFloat(price));
+    formData.append('surface', surface);
+    formData.append('dimensions', dimensions);
+    formData.append('status', status);
+    if (image) {
+      formData.append('image', image);
+    }
+
     try {
-      const res = await client.post('/fields', {
-        name,
-        location,
-        description,
-        price: parseFloat(price),
-        surface,
-        dimensions,
-        image,
-        status
+      const res = await client.post('/fields', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       });
 
       if (res.data.success) {
@@ -131,13 +138,12 @@ const AddField = () => {
 
           <div className="grid-cols-2" style={{ gap: '1.5rem' }}>
             <div className="form-group">
-              <label className="form-label">Image URL</label>
+              <label className="form-label">Upload Image</label>
               <input
-                type="url"
+                type="file"
+                accept="image/*"
                 className="form-input"
-                placeholder="https://images.unsplash.com/... (optional)"
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
+                onChange={(e) => setImage(e.target.files[0])}
               />
             </div>
 
