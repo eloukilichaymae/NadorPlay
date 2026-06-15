@@ -2,20 +2,16 @@ import React, { useContext, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { NotificationContext } from '../context/NotificationContext';
-import { 
-  LayoutDashboard, 
-  Map, 
-  PlusCircle, 
-  CalendarCheck, 
-  Users, 
-  MessageSquare, 
-  ScanQrCode, 
-  Clock, 
-  UserCheck, 
-  Settings, 
-  Bell, 
-  CreditCard,
-  ChevronRight,
+import {
+  LayoutDashboard,
+  Map,
+  PlusCircle,
+  CalendarCheck,
+  Users,
+  MessageSquare,
+  Settings,
+  Bell,
+  Building2,
   Menu,
   X,
   LogOut
@@ -23,7 +19,7 @@ import {
 
 const DashboardLayout = ({ children }) => {
   const { user, logout } = useContext(AuthContext);
-  const { unreadCount } = useContext(NotificationContext || { unreadCount: 0 });
+  const { unreadCount = 0 } = useContext(NotificationContext) ?? {};
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -43,20 +39,9 @@ const DashboardLayout = ({ children }) => {
           { name: 'Manage Fields', path: '/admin/fields', icon: <Map size={20} /> },
           { name: 'Add Field', path: '/admin/fields/add', icon: <PlusCircle size={20} /> },
           { name: 'Manage Bookings', path: '/admin/reservations', icon: <CalendarCheck size={20} /> },
+          { name: 'Subscriptions', path: '/admin/subscriptions', icon: <Building2 size={20} /> },
           { name: 'Manage Users', path: '/admin/users', icon: <Users size={20} /> },
           { name: 'Manage Reviews', path: '/admin/reviews', icon: <MessageSquare size={20} /> },
-        ];
-      case 'guard':
-        return [
-          { name: 'Dashboard', path: '/guard', icon: <LayoutDashboard size={20} /> },
-          { name: 'QR Scanner', path: '/guard/scan', icon: <ScanQrCode size={20} /> },
-          { name: 'Daily Attendance', path: '/guard/attendance', icon: <UserCheck size={20} /> },
-        ];
-      case 'organization':
-        return [
-          { name: 'Dashboard', path: '/organization', icon: <LayoutDashboard size={20} /> },
-          { name: 'Subscriptions', path: '/organization/subscriptions', icon: <CreditCard size={20} /> },
-          { name: 'Training Sessions', path: '/organization/sessions', icon: <Clock size={20} /> },
         ];
       default: // user
         return [

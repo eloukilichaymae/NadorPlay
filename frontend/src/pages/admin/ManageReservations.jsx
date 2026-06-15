@@ -1,372 +1,342 @@
 import React, { useEffect, useState } from 'react';
 import client from '../../api/client';
-import { Calendar, Trash2, ShieldAlert, Check, X } from 'lucide-react';
+import { Eye, Check, X, Plus, ShieldAlert, Calendar, Clock, User, MapPin, QrCode, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ManageReservations = () => {
-  const [activeTab, setActiveTab] = useState('clients');
   const [reservations, setReservations] = useState([]);
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [subLoading, setSubLoading] = useState(true);
+  const [loading, setLoading]           = useState(true);
+  const [page, setPage]                 = useState(1);
+  const [totalPages, setTotalPages]     = useState(1);
 
-  // Pagination states
-  const [resPage, setResPage] = useState(1);
-  const [resTotalPages, setResTotalPages] = useState(1);
-  const [subPage, setSubPage] = useState(1);
-  const [subTotalPages, setSubTotalPages] = useState(1);
+  // Add form
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [users, setUsers]             = useState([]);
+  const [fields, setFields]           = useState([]);
+  const [addForm, setAddForm]         = useState({ user_id: '', field_id: '', date: '', time: '', duration: 1, number_of_players: 10 });
+  const [submitting, setSubmitting]   = useState(false);
 
-  const fetchReservations = async (page = 1) => {
+  // View modal
+  const [viewRes, setViewRes] = useState(null);
+
+  const fetchReservations = async (p = 1) => {
     setLoading(true);
     try {
-      const res = await client.get(`/reservations?page=${page}`);
+      const res = await client.get(`/reservations?page=${p}`);
       if (res.data.success) {
         setReservations(res.data.data.data || []);
-        setResPage(res.data.data.current_page || 1);
-        setResTotalPages(res.data.data.last_page || 1);
+        setPage(res.data.data.current_page || 1);
+        setTotalPages(res.data.data.last_page || 1);
       }
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to load reservations.");
+      toast.error('Failed to load reservations.');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchSubscriptions = async (page = 1) => {
-    setSubLoading(true);
+  const fetchFormData = async () => {
     try {
-      const res = await client.get(`/subscriptions?page=${page}`);
-      if (res.data.success) {
-        setSubscriptions(res.data.data.data || []);
-        setSubPage(res.data.data.current_page || 1);
-        setSubTotalPages(res.data.data.last_page || 1);
-      }
+      const [uRes, fRes] = await Promise.all([
+        client.get('/admin/users?per_page=100'),
+        client.get('/fields?per_page=100'),
+      ]);
+      if (uRes.data.success) setUsers(uRes.data.data.data || []);
+      if (fRes.data.success) setFields(fRes.data.data.data || []);
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to load subscriptions.");
-    } finally {
-      setSubLoading(false);
+      toast.error('Failed to load users/fields.');
     }
   };
 
-  useEffect(() => {
-    if (activeTab === 'clients') {
-      fetchReservations(resPage);
-    } else {
-      fetchSubscriptions(subPage);
-    }
-  }, [activeTab, resPage, subPage]);
+  useEffect(() => { fetchReservations(page); }, [page]);
 
-  const handleApproveReservation = async (id) => {
-    if (!window.confirm("Approve this reservation and mark payment as Paid?")) return;
+  const openAddForm = () => {
+    if (users.length === 0) fetchFormData();
+    setShowAddForm(true);
+  };
+
+  const handleAddSubmit = async (e) => {
+    e.preventDefault();
+    if (!addForm.user_id) { toast.error('Please select a user.'); return; }
+    if (!addForm.field_id) { toast.error('Please select a field.'); return; }
+    setSubmitting(true);
+    try {
+      const res = await client.post('/reservations', addForm);
+      if (res.data.success) {
+        toast.success('Reservation created successfully!');
+        setShowAddForm(false);
+        setAddForm({ user_id: '', field_id: '', date: '', time: '', duration: 1, number_of_players: 10 });
+        fetchReservations(1);
+      }
+    } catch (err) {
+      const errors = err.response?.data?.errors;
+      if (errors) Object.values(errors).flat().forEach(m => toast.error(m));
+      else toast.error(err.response?.data?.message || 'Failed to create reservation.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleApprove = async (id) => {
+    if (!window.confirm('Approve this reservation?')) return;
     try {
       const res = await client.post(`/reservations/${id}/approve`);
-      if (res.data.success) {
-        toast.success("Reservation approved and QR code generated!");
-        fetchReservations(resPage);
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to approve reservation.");
-    }
+      if (res.data.success) { toast.success('Reservation approved!'); fetchReservations(page); }
+    } catch (err) { toast.error('Failed to approve.'); }
   };
 
-  const handleCancelReservation = async (id) => {
-    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+  const handleCancel = async (id) => {
+    if (!window.confirm('Cancel this reservation?')) return;
     try {
       const res = await client.post(`/reservations/${id}/cancel`);
-      if (res.data.success) {
-        toast.success("Reservation cancelled successfully.");
-        fetchReservations(resPage);
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to cancel reservation.");
-    }
+      if (res.data.success) { toast.success('Reservation cancelled.'); fetchReservations(page); }
+    } catch (err) { toast.error('Failed to cancel.'); }
   };
 
-  const handleApproveSubscription = async (id) => {
-    if (!window.confirm("Activate this academy subscription plan?")) return;
-    try {
-      const res = await client.post(`/subscriptions/${id}/approve`);
-      if (res.data.success) {
-        toast.success("Subscription activated successfully!");
-        fetchSubscriptions(subPage);
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to activate subscription.");
-    }
+  const statusBadge = (s) => {
+    const map = { confirmed: 'badge-success', attended: 'badge-info', cancelled: 'badge-danger' };
+    return <span className={`badge ${map[s] || 'badge-pending'}`}>{s}</span>;
   };
 
-  const handleCancelSubscription = async (id) => {
-    if (!window.confirm("Are you sure you want to cancel this subscription?")) return;
-    try {
-      const res = await client.post(`/subscriptions/${id}/cancel`);
-      if (res.data.success) {
-        toast.success("Subscription cancelled successfully.");
-        fetchSubscriptions(subPage);
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to cancel subscription.");
-    }
-  };
-
-  const renderPagination = (currentPage, totalPages, onPageChange) => {
-    if (totalPages <= 1) return null;
-    return (
-      <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', padding: '0 0.5rem' }}>
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          Page {currentPage} of {totalPages}
-        </span>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="btn btn-secondary"
-            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-          >
-            Previous
-          </button>
-          <button
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="btn btn-secondary"
-            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-          >
-            Next
-          </button>
-        </div>
-      </div>
-    );
+  const payBadge = (s) => {
+    const map = { paid: 'badge-success', unpaid: 'badge-danger' };
+    return <span className={`badge ${map[s] || 'badge-pending'}`}>{s}</span>;
   };
 
   return (
     <div style={{ animation: 'fadeIn 0.5s ease-out', textAlign: 'left' }}>
-      <div style={{ marginBottom: '2.5rem' }}>
-        <h1 style={{ fontSize: '2.25rem', fontWeight: '800', color: '#fff', margin: '0 0 0.5rem' }}>
-          Manage Bookings
-        </h1>
-        <p style={{ color: 'var(--text-muted)' }}>Approve payments, activate academy subscriptions, and control reservations</p>
-      </div>
 
-      {/* Tabs Menu */}
-      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border-color)', marginBottom: '2rem' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ fontSize: '2.25rem', fontWeight: '800', color: '#fff', margin: '0 0 0.5rem' }}>Manage Bookings</h1>
+          <p style={{ color: 'var(--text-muted)' }}>View, approve, cancel and create field reservations</p>
+        </div>
         <button
-          onClick={() => setActiveTab('clients')}
-          style={{
-            padding: '1rem 1.5rem',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'clients' ? '3px solid var(--primary)' : '3px solid transparent',
-            color: activeTab === 'clients' ? '#fff' : 'var(--text-muted)',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'var(--transition)'
-          }}
+          onClick={openAddForm}
+          className="btn btn-primary"
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1.4rem' }}
         >
-          Client Reservations
-        </button>
-        <button
-          onClick={() => setActiveTab('orgs')}
-          style={{
-            padding: '1rem 1.5rem',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'orgs' ? '3px solid var(--primary)' : '3px solid transparent',
-            color: activeTab === 'orgs' ? '#fff' : 'var(--text-muted)',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'var(--transition)'
-          }}
-        >
-          Organization Subscriptions
+          <Plus size={18} /> New Reservation
         </button>
       </div>
 
-      {activeTab === 'clients' ? (
-        loading ? (
-          <div className="text-center" style={{ padding: '3rem 0' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              border: '4px solid rgba(255, 255, 255, 0.1)',
-              borderTopColor: '#10b981',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto'
-            }}></div>
+      {/* Add Reservation Form */}
+      {showAddForm && (
+        <div className="glass" style={{ padding: '2rem', marginBottom: '2rem', border: '1px solid rgba(16,185,129,0.25)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h3 style={{ color: '#fff', margin: 0 }}>New Reservation</h3>
+            <button onClick={() => setShowAddForm(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+              <XCircle size={20} />
+            </button>
           </div>
-        ) : reservations.length === 0 ? (
-          <div className="glass text-center" style={{ padding: '4rem 2rem' }}>
-            <ShieldAlert size={40} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
-            <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>No Reservations</h3>
-            <p style={{ color: 'var(--text-muted)' }}>No client reservations exist in the database.</p>
-          </div>
-        ) : (
-          <>
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Field</th>
-                    <th>Player</th>
-                    <th>Date</th>
-                    <th>Time</th>
-                    <th>Duration</th>
-                    <th>Status</th>
-                    <th>Payment</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reservations.map((res) => (
-                    <tr key={res.id}>
-                      <td>#{res.id}</td>
-                      <td><strong>{res.field?.name}</strong></td>
-                      <td>{res.user?.name}</td>
-                      <td>{new Date(res.date).toLocaleDateString()}</td>
-                      <td>{res.time}</td>
-                      <td>{res.duration} hr{res.duration > 1 ? 's' : ''}</td>
-                      <td>
-                        <span className={`badge ${
-                          res.status === 'confirmed' ? 'badge-success' : 
-                          res.status === 'attended' ? 'badge-info' : 
-                          res.status === 'cancelled' ? 'badge-danger' : 
-                          'badge-pending'
-                        }`}>
-                          {res.status}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge ${
-                          res.payment_status === 'paid' ? 'badge-success' : 
-                          res.payment_status === 'unpaid' ? 'badge-danger' : 
-                          'badge-pending'
-                        }`}>
-                          {res.payment_status}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                          {res.status === 'pending' && (
-                            <button 
-                              onClick={() => handleApproveReservation(res.id)}
-                              className="btn btn-secondary" 
-                              style={{ padding: '0.4rem', border: 'none', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)' }}
-                              title="Approve Payment & Confirm"
-                            >
-                              <Check size={16} />
-                            </button>
-                          )}
-                          {res.status !== 'cancelled' && res.status !== 'attended' && (
-                            <button 
-                              onClick={() => handleCancelReservation(res.id)}
-                              className="btn btn-secondary" 
-                              style={{ padding: '0.4rem', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                              title="Cancel / Reject Reservation"
-                            >
-                              <X size={16} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <form onSubmit={handleAddSubmit}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Player / User</label>
+                <select className="form-input" value={addForm.user_id} onChange={e => setAddForm(f => ({ ...f, user_id: e.target.value }))} required>
+                  <option value="">-- Select user --</option>
+                  {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Field</label>
+                <select className="form-input" value={addForm.field_id} onChange={e => setAddForm(f => ({ ...f, field_id: e.target.value }))} required>
+                  <option value="">-- Select field --</option>
+                  {fields.map(f => <option key={f.id} value={f.id}>{f.name} — {f.price} MAD/hr</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Date</label>
+                <input type="date" className="form-input" value={addForm.date} min={new Date().toISOString().split('T')[0]} onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} required />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Time</label>
+                <input type="time" className="form-input" value={addForm.time} onChange={e => setAddForm(f => ({ ...f, time: e.target.value }))} required />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Duration (hrs)</label>
+                <select className="form-input" value={addForm.duration} onChange={e => setAddForm(f => ({ ...f, duration: Number(e.target.value) }))}>
+                  {[1,2,3,4].map(h => <option key={h} value={h}>{h} hour{h > 1 ? 's' : ''}</option>)}
+                </select>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Players</label>
+                <input type="number" className="form-input" min={2} max={30} value={addForm.number_of_players} onChange={e => setAddForm(f => ({ ...f, number_of_players: Number(e.target.value) }))} required />
+              </div>
             </div>
-            {renderPagination(resPage, resTotalPages, fetchReservations)}
-          </>
-        )
+            <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary" disabled={submitting}>
+                {submitting ? 'Creating...' : 'Create Reservation'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Reservations Table */}
+      {loading ? (
+        <div className="text-center" style={{ padding: '3rem 0' }}>
+          <div style={{ width: '40px', height: '40px', border: '4px solid rgba(255,255,255,0.1)', borderTopColor: '#10b981', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
+        </div>
+      ) : reservations.length === 0 ? (
+        <div className="glass text-center" style={{ padding: '4rem 2rem' }}>
+          <ShieldAlert size={40} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
+          <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>No Reservations</h3>
+          <p style={{ color: 'var(--text-muted)' }}>No reservations found. Create one using the button above.</p>
+        </div>
       ) : (
-        subLoading ? (
-          <div className="text-center" style={{ padding: '3rem 0' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              border: '4px solid rgba(255, 255, 255, 0.1)',
-              borderTopColor: '#10b981',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto'
-            }}></div>
-          </div>
-        ) : subscriptions.length === 0 ? (
-          <div className="glass text-center" style={{ padding: '4rem 2rem' }}>
-            <ShieldAlert size={40} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
-            <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>No Subscriptions</h3>
-            <p style={{ color: 'var(--text-muted)' }}>No academy subscriptions exist in the database.</p>
-          </div>
-        ) : (
-          <>
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Field</th>
-                    <th>Organization</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
-                    <th>Price</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+        <>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Field</th>
+                  <th>Player</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Payment</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reservations.map(res => (
+                  <tr key={res.id}>
+                    <td>#{res.id}</td>
+                    <td><strong>{res.field?.name}</strong></td>
+                    <td>{res.user?.name}</td>
+                    <td>{new Date(res.date).toLocaleDateString()}</td>
+                    <td>{res.time?.substring(0, 5)}</td>
+                    <td>{res.duration} hr{res.duration > 1 ? 's' : ''}</td>
+                    <td>{statusBadge(res.status)}</td>
+                    <td>{payBadge(res.payment_status)}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => setViewRes(res)}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.4rem', background: 'rgba(99,102,241,0.12)', color: '#818cf8', border: 'none' }}
+                          title="View details"
+                        >
+                          <Eye size={15} />
+                        </button>
+                        {res.status === 'pending' && (
+                          <button
+                            onClick={() => handleApprove(res.id)}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.4rem', background: 'rgba(16,185,129,0.12)', color: 'var(--primary)', border: 'none' }}
+                            title="Approve"
+                          >
+                            <Check size={15} />
+                          </button>
+                        )}
+                        {res.status !== 'cancelled' && res.status !== 'attended' && (
+                          <button
+                            onClick={() => handleCancel(res.id)}
+                            className="btn btn-secondary"
+                            style={{ padding: '0.4rem', background: 'rgba(239,68,68,0.12)', color: 'var(--danger)', border: 'none' }}
+                            title="Cancel"
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {subscriptions.map((sub) => (
-                    <tr key={sub.id}>
-                      <td>#{sub.id}</td>
-                      <td><strong>{sub.field?.name}</strong></td>
-                      <td>{sub.organization?.name}</td>
-                      <td>{new Date(sub.start_date).toLocaleDateString()}</td>
-                      <td>{new Date(sub.end_date).toLocaleDateString()}</td>
-                      <td>{sub.total_price} MAD</td>
-                      <td>
-                        <span className={`badge ${
-                          sub.status === 'active' ? 'badge-success' : 
-                          sub.status === 'cancelled' ? 'badge-danger' : 
-                          'badge-pending'
-                        }`}>
-                          {sub.status}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                          {sub.status === 'pending' && (
-                            <button 
-                              onClick={() => handleApproveSubscription(sub.id)}
-                              className="btn btn-secondary" 
-                              style={{ padding: '0.4rem', border: 'none', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)' }}
-                              title="Activate Subscription"
-                            >
-                              <Check size={16} />
-                            </button>
-                          )}
-                          {sub.status !== 'cancelled' && (
-                            <button 
-                              onClick={() => handleCancelSubscription(sub.id)}
-                              className="btn btn-secondary" 
-                              style={{ padding: '0.4rem', border: 'none', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }}
-                              title="Cancel / Reject Subscription"
-                            >
-                              <X size={16} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Page {page} of {totalPages}</span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => setPage(p => p - 1)} disabled={page === 1} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Previous</button>
+                <button onClick={() => setPage(p => p + 1)} disabled={page === totalPages} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Next</button>
+              </div>
             </div>
-            {renderPagination(subPage, subTotalPages, fetchSubscriptions)}
-          </>
-        )
+          )}
+        </>
+      )}
+
+      {/* View Modal */}
+      {viewRes && (
+        <div
+          onClick={() => setViewRes(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="glass"
+            style={{ width: '100%', maxWidth: '520px', padding: '2rem', borderRadius: '16px', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem' }}>
+              <h3 style={{ color: '#fff', margin: 0 }}>Reservation #{viewRes.id}</h3>
+              <button onClick={() => setViewRes(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <XCircle size={22} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.75rem' }}>
+              {[
+                { icon: <User size={16} />, label: 'Player', value: `${viewRes.user?.name} (${viewRes.user?.email || '—'})` },
+                { icon: <MapPin size={16} />, label: 'Field', value: viewRes.field?.name },
+                { icon: <Calendar size={16} />, label: 'Date', value: new Date(viewRes.date).toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) },
+                { icon: <Clock size={16} />, label: 'Time', value: `${viewRes.time?.substring(0,5)} — ${viewRes.duration} hour${viewRes.duration > 1 ? 's' : ''}` },
+                { icon: <User size={16} />, label: 'Players', value: viewRes.number_of_players || '—' },
+              ].map(({ icon, label, value }) => (
+                <div key={label} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                  <span style={{ color: 'var(--primary)', marginTop: '2px', flexShrink: 0 }}>{icon}</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', minWidth: '80px' }}>{label}:</span>
+                  <span style={{ color: '#fff', fontSize: '0.9rem' }}>{value}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
+                <div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>Booking Status</span>
+                  {statusBadge(viewRes.status)}
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.3rem' }}>Payment</span>
+                  {payBadge(viewRes.payment_status)}
+                </div>
+              </div>
+            </div>
+
+            {viewRes.qr_code && (
+              <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', padding: '1rem' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <QrCode size={14} /> QR Payload
+                </p>
+                <pre style={{ color: '#34d399', fontSize: '0.72rem', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                  {JSON.stringify(JSON.parse(viewRes.qr_code), null, 2)}
+                </pre>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.75rem', justifyContent: 'flex-end' }}>
+              {viewRes.status === 'pending' && (
+                <button className="btn btn-primary" style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem' }}
+                  onClick={() => { handleApprove(viewRes.id); setViewRes(null); }}>
+                  <Check size={15} /> Approve
+                </button>
+              )}
+              {viewRes.status !== 'cancelled' && viewRes.status !== 'attended' && (
+                <button className="btn btn-secondary" style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem', color: 'var(--danger)' }}
+                  onClick={() => { handleCancel(viewRes.id); setViewRes(null); }}>
+                  <X size={15} /> Cancel
+                </button>
+              )}
+              <button className="btn btn-secondary" onClick={() => setViewRes(null)} style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem' }}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

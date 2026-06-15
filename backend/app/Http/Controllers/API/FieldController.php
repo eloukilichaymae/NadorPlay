@@ -27,7 +27,8 @@ class FieldController extends Controller
                   ->orWhere('location', 'like', '%' . $request->search . '%');
         }
 
-        $fields = $query->withAvg('reviews', 'rating')->latest()->paginate(10);
+        $perPage = min((int) $request->input('per_page', 10), 100);
+        $fields = $query->withAvg('reviews', 'rating')->latest()->paginate($perPage);
 
         return response()->json([
             'success' => true,

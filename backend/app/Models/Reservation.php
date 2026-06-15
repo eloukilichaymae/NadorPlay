@@ -12,11 +12,14 @@ class Reservation extends Model
     protected $fillable = [
         'user_id',
         'field_id',
+        'subscription_id',
+        'reservation_type',
         'date',
         'time',
         'duration',
         'number_of_players',
         'status',
+        'check_in_status',
         'payment_status',
         'qr_code',
     ];
@@ -36,6 +39,11 @@ class Reservation extends Model
     public function field()
     {
         return $this->belongsTo(Field::class);
+    }
+
+    public function subscription()
+    {
+        return $this->belongsTo(Subscription::class);
     }
 
     public function payments()

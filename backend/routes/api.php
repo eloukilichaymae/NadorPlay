@@ -51,6 +51,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/subscriptions/{id}/cancel', [SubscriptionController::class, 'cancel']);
     Route::post('/subscriptions/{id}/approve', [SubscriptionController::class, 'approve']);
 
+    // Admin Subscription Management (create + auto-generate reservations)
+    Route::post('/admin/subscriptions', [SubscriptionController::class, 'adminStore']);
+
     // Payments
     Route::post('/payments/process', [PaymentController::class, 'processPayment']);
 

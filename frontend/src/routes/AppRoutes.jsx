@@ -31,16 +31,8 @@ import EditField from '../pages/admin/EditField';
 import ManageReservations from '../pages/admin/ManageReservations';
 import ManageUsers from '../pages/admin/ManageUsers';
 import ManageReviews from '../pages/admin/ManageReviews';
+import ManageSubscriptions from '../pages/admin/ManageSubscriptions';
 
-// Guard pages
-import GuardDashboard from '../pages/guard/GuardDashboard';
-import QrScannerPage from '../pages/guard/QrScannerPage';
-import AttendanceVerification from '../pages/guard/AttendanceVerification';
-
-// Organization pages
-import OrganizationDashboard from '../pages/organization/OrganizationDashboard';
-import SubscriptionsPage from '../pages/organization/SubscriptionsPage';
-import TrainingSessionsPage from '../pages/organization/TrainingSessionsPage';
 
 // Public layout wrapper
 const PublicLayout = ({ children }) => (
@@ -94,12 +86,12 @@ const AppRoutes = () => {
 
       {/* Shared Profile / Settings & Notifications */}
       <Route path="/account" element={
-        <ProtectedRoute allowedRoles={['user', 'admin', 'guard', 'organization']}>
+        <ProtectedRoute allowedRoles={['user', 'admin']}>
           <PortalLayout><AccountSettingsPage /></PortalLayout>
         </ProtectedRoute>
       } />
       <Route path="/account/notifications" element={
-        <ProtectedRoute allowedRoles={['user', 'admin', 'guard', 'organization']}>
+        <ProtectedRoute allowedRoles={['user', 'admin']}>
           <PortalLayout><NotificationsPage /></PortalLayout>
         </ProtectedRoute>
       } />
@@ -140,38 +132,9 @@ const AppRoutes = () => {
           <PortalLayout><ManageReviews /></PortalLayout>
         </ProtectedRoute>
       } />
-
-      {/* Guard Protected Routes */}
-      <Route path="/guard" element={
-        <ProtectedRoute allowedRoles={['guard']}>
-          <PortalLayout><GuardDashboard /></PortalLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/guard/scan" element={
-        <ProtectedRoute allowedRoles={['guard']}>
-          <PortalLayout><QrScannerPage /></PortalLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/guard/attendance" element={
-        <ProtectedRoute allowedRoles={['guard']}>
-          <PortalLayout><AttendanceVerification /></PortalLayout>
-        </ProtectedRoute>
-      } />
-
-      {/* Organization Protected Routes */}
-      <Route path="/organization" element={
-        <ProtectedRoute allowedRoles={['organization']}>
-          <PortalLayout><OrganizationDashboard /></PortalLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/organization/subscriptions" element={
-        <ProtectedRoute allowedRoles={['organization']}>
-          <PortalLayout><SubscriptionsPage /></PortalLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/organization/sessions" element={
-        <ProtectedRoute allowedRoles={['organization']}>
-          <PortalLayout><TrainingSessionsPage /></PortalLayout>
+      <Route path="/admin/subscriptions" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <PortalLayout><ManageSubscriptions /></PortalLayout>
         </ProtectedRoute>
       } />
 

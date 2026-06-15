@@ -74,18 +74,18 @@ class AdminController extends Controller
             ->get();
 
         // Monthly Revenue Chart
-        $revenueChart = Payment::where('status', 'paid')
-            ->select(
-                DB::raw('strftime("%Y-%m", created_at) as month_period'),
-                DB::raw('sum(amount) as total')
-            )
-            ->groupBy('month_period')
-            ->get();
-
         if (config('database.default') === 'mysql') {
             $revenueChart = Payment::where('status', 'paid')
                 ->select(
                     DB::raw('DATE_FORMAT(created_at, "%Y-%m") as month_period'),
+                    DB::raw('sum(amount) as total')
+                )
+                ->groupBy('month_period')
+                ->get();
+        } else {
+            $revenueChart = Payment::where('status', 'paid')
+                ->select(
+                    DB::raw('strftime("%Y-%m", created_at) as month_period'),
                     DB::raw('sum(amount) as total')
                 )
                 ->groupBy('month_period')
@@ -114,7 +114,8 @@ class AdminController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
-        $users = User::latest()->paginate(10);
+        $perPage = min((int) $request->input('per_page', 10), 100);
+        $users = User::latest()->paginate($perPage);
         return response()->json([
             'success' => true,
             'data' => $users
@@ -133,7 +134,7 @@ class AdminController extends Controller
         }
 
         $request->validate([
-            'role' => 'required|string|in:user,admin,guard,organization'
+            'role' => 'required|string|in:user,admin'
         ]);
 
         $user->update(['role' => $request->role]);

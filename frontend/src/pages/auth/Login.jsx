@@ -33,8 +33,11 @@ const Login = () => {
       }
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Invalid email or password.');
-      toast.error("Authentication failed.");
+      const message = err.response?.data?.message
+        || err.response?.data?.errors
+        || (err.request && !err.response ? 'Cannot reach the server. Make sure the backend is running.' : 'Invalid email or password.');
+      setError(typeof message === 'object' ? Object.values(message).flat().join(' ') : message);
+      toast.error(err.response ? 'Login failed.' : 'Server unreachable.');
     } finally {
       setLoading(false);
     }

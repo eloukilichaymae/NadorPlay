@@ -11,6 +11,7 @@ class Subscription extends Model
 
     protected $fillable = [
         'organization_id',
+        'organization_name',
         'field_id',
         'start_date',
         'end_date',
@@ -37,6 +38,11 @@ class Subscription extends Model
     public function sessions()
     {
         return $this->hasMany(SubscriptionSession::class);
+    }
+
+    public function reservations()
+    {
+        return $this->hasMany(Reservation::class);
     }
 
     public function payments()

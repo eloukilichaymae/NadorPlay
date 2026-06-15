@@ -79,7 +79,7 @@ const ManageUsers = () => {
         <h1 style={{ fontSize: '2.25rem', fontWeight: '800', color: '#fff', margin: '0 0 0.5rem' }}>
           Manage Users & Roles
         </h1>
-        <p style={{ color: 'var(--text-muted)' }}>Audit user accounts and assign operational roles (Guard, Admin, Organization, Player)</p>
+        <p style={{ color: 'var(--text-muted)' }}>View all accounts and promote players to admin</p>
       </div>
 
       {loading ? (
@@ -114,25 +114,18 @@ const ManageUsers = () => {
                     <td>{u.email}</td>
                     <td>{u.phone || 'N/A'}</td>
                     <td>
-                      <span className={`badge ${
-                        u.role === 'admin' ? 'badge-success' : 
-                        u.role === 'guard' ? 'badge-info' : 
-                        u.role === 'organization' ? 'badge-pending' : 
-                        'badge-info'
-                      }`}>
+                      <span className={`badge ${u.role === 'admin' ? 'badge-success' : 'badge-info'}`}>
                         {u.role}
                       </span>
                     </td>
                     <td>
                       <select
                         className="form-input"
-                        style={{ width: '150px', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                        style={{ width: '130px', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
                         value={u.role}
                         onChange={(e) => handleRoleChange(u.id, e.target.value)}
                       >
                         <option value="user">User / Player</option>
-                        <option value="guard">Guard</option>
-                        <option value="organization">Organization</option>
                         <option value="admin">Admin</option>
                       </select>
                     </td>
