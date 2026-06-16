@@ -66,6 +66,11 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Glassmorphism utility classes */
 .glass {
   background: var(--bg-card);
@@ -278,3 +283,32 @@ tr:hover td {
 .flex-center { display: flex; justify-content: center; align-items: center; }
 .gap-2 { gap: 0.5rem; }
 .gap-4 { gap: 1rem; }
+
+/* Card image zoom effect */
+.card-image { transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1) !important; }
+.card-image:hover { transform: scale(1.04); }
+
+/* Remove last row bottom border in tables */
+tr:last-child td { border-bottom: none; }
+
+/* Form input disabled state */
+.form-input:disabled,
+.form-input[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Improved button disabled */
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Scrollbar for webkit */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+

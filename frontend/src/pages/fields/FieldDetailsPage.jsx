@@ -10,17 +10,6 @@ const FieldDetailsPage = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
 
-  const [field, setField] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Booking Form State
-  const [bookingDate, setBookingDate] = useState('');
-  const [bookingTime, setBookingTime] = useState('');
-  const [bookingDuration, setBookingDuration] = useState(1);
-  const [playersCount, setPlayersCount] = useState(10);
-  const [bookingLoading, setBookingLoading] = useState(false);
-  const [bookingError, setBookingError] = useState('');
-
   const getLocalTodayString = () => {
     const d = new Date();
     const year = d.getFullYear();
@@ -28,6 +17,21 @@ const FieldDetailsPage = () => {
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+
+  const [field, setField] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Booking Form State
+  const [bookingDate, setBookingDate] = useState(getLocalTodayString());
+  const [bookingTime, setBookingTime] = useState('');
+  const bookingDuration = 1; // Fixed to 1 hour — not editable by clients
+  const [playersCount, setPlayersCount] = useState(10);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+
+  // Availability state
+  const [availabilitySlots, setAvailabilitySlots] = useState(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
 
   const allTimeSlots = [
     { value: "08:00", label: "08:00 AM" },
@@ -69,6 +73,32 @@ const FieldDetailsPage = () => {
       setBookingTime('');
     }
   }, [bookingDate, filteredSlots]);
+
+  // Fetch availability when date changes
+  useEffect(() => {
+    if (!bookingDate || !id) {
+      setAvailabilitySlots(null);
+      return;
+    }
+    const fetchAvailability = async () => {
+      setAvailabilityLoading(true);
+      try {
+        const res = await client.get(`/fields/${id}/availability?date=${bookingDate}`);
+        if (res.data.success) {
+          // Create a map: time -> available
+          const map = {};
+          res.data.slots.forEach(s => { map[s.time] = s.available; });
+          setAvailabilitySlots(map);
+        }
+      } catch (err) {
+        console.error('Could not fetch availability', err);
+        setAvailabilitySlots(null);
+      } finally {
+        setAvailabilityLoading(false);
+      }
+    };
+    fetchAvailability();
+  }, [bookingDate, id]);
 
   useEffect(() => {
     const fetchFieldDetails = async () => {
@@ -284,7 +314,10 @@ const FieldDetailsPage = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Select Time</label>
+                <label className="form-label">
+                  Select Time
+                  {availabilityLoading && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', color: 'var(--primary)' }}>Checking availability…</span>}
+                </label>
                 <div style={{ position: 'relative' }}>
                   <Clock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                   <select
@@ -295,25 +328,24 @@ const FieldDetailsPage = () => {
                     onChange={(e) => setBookingTime(e.target.value)}
                   >
                     <option value="">Choose Time Slot</option>
-                    {filteredSlots.map(slot => (
-                      <option key={slot.value} value={slot.value}>{slot.label}</option>
-                    ))}
+                    {filteredSlots.map(slot => {
+                      const isBooked = availabilitySlots && availabilitySlots[slot.value] === false;
+                      return (
+                        <option key={slot.value} value={slot.value} disabled={isBooked}>
+                          {slot.label}{isBooked ? ' — Booked' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
 
+              {/* Duration is fixed at 1 hour — shown as info only */}
               <div className="form-group">
-                <label className="form-label">Duration (Hours)</label>
-                <select
-                  className="form-input"
-                  value={bookingDuration}
-                  onChange={(e) => setBookingDuration(parseInt(e.target.value))}
-                >
-                  <option value={1}>1 Hour</option>
-                  <option value={2}>2 Hours</option>
-                  <option value={3}>3 Hours</option>
-                  <option value={4}>4 Hours</option>
-                </select>
+                <label className="form-label">Duration</label>
+                <div className="form-input" style={{ cursor: 'default', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Clock size={16} /> 1 Hour (Fixed)
+                </div>
               </div>
 
               <div className="form-group">

@@ -172,4 +172,35 @@ class FieldController extends Controller
             'message' => 'Field deleted successfully'
         ]);
     }
+
+    public function availability(Request $request, $id)
+    {
+        $field = Field::find($id);
+        if (!$field) {
+            return response()->json(['success' => false, 'message' => 'Field not found'], 404);
+        }
+
+        $date = $request->query('date', now()->toDateString());
+        $isToday = \Carbon\Carbon::parse($date)->isToday();
+        $currentHour = now()->hour;
+
+        $slots = [];
+        for ($hour = 8; $hour <= 23; $hour++) {
+            if ($isToday && $hour <= $currentHour) {
+                continue;
+            }
+            $timeString = sprintf('%02d:00', $hour);
+            $hasConflict = \App\Models\Reservation::hasConflict($id, $date, $timeString, 1);
+            $slots[] = [
+                'time' => $timeString,
+                'available' => !$hasConflict
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'date' => $date,
+            'slots' => $slots
+        ]);
+    }
 }

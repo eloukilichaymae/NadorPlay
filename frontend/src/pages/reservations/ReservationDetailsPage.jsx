@@ -187,7 +187,7 @@ const ReservationDetailsPage = () => {
             </div>
           </div>
 
-          {!isCancelled && reservation.status !== 'attended' && (
+          {!isCancelled && reservation.status === 'pending' && (
             <button className="btn btn-danger" style={{ width: '100%' }} onClick={handleCancelBooking}>
               Cancel Reservation
             </button>

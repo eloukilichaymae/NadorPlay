@@ -23,6 +23,7 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 
 Route::get('/fields', [FieldController::class, 'index']);
 Route::get('/fields/{id}', [FieldController::class, 'show']);
+Route::get('/fields/{id}/availability', [FieldController::class, 'availability']);
 Route::get('/fields/{field_id}/reviews', [ReviewController::class, 'index']);
 
 // Protected routes (Sanctum)
@@ -66,6 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/stats', [AdminController::class, 'dashboardStats']);
     Route::get('/admin/users', [AdminController::class, 'manageUsers']);
     Route::put('/admin/users/{id}/role', [AdminController::class, 'updateUserRole']);
+    Route::get('/admin/reviews', [AdminController::class, 'getAllReviews']);
     Route::delete('/admin/reviews/{id}', [AdminController::class, 'deleteReview']);
 
     Route::post('/fields', [FieldController::class, 'store']);

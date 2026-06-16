@@ -100,7 +100,7 @@ const AdminDashboard = () => {
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid-cols-3" style={{ gap: '1.5rem', marginBottom: '2.5rem' }}>
+      <div className="grid-cols-4" style={{ gap: '1.5rem', marginBottom: '2.5rem' }}>
         <div className="glass" style={{ padding: '2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <div style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--primary)', width: '56px', height: '56px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <DollarSign size={28} />
@@ -116,8 +116,18 @@ const AdminDashboard = () => {
             <CalendarCheck size={28} />
           </div>
           <div>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block' }}>TOTAL RESERVATIONS</span>
-            <strong style={{ fontSize: '1.75rem', color: '#fff' }}>{stats?.total_reservations || 0}</strong>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block' }}>CONFIRMED</span>
+            <strong style={{ fontSize: '1.75rem', color: '#fff' }}>{stats?.total_confirmed_reservations ?? 0}</strong>
+          </div>
+        </div>
+
+        <div className="glass" style={{ padding: '2rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#f87171', width: '56px', height: '56px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Star size={28} />
+          </div>
+          <div>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'block' }}>CANCELLED</span>
+            <strong style={{ fontSize: '1.75rem', color: '#fff' }}>{stats?.total_cancelled_reservations ?? 0}</strong>
           </div>
         </div>
 

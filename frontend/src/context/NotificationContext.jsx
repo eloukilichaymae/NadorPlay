@@ -9,9 +9,9 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (isSilent = false) => {
     if (!token) return;
-    setLoading(true);
+    if (!isSilent) setLoading(true);
     try {
       const res = await client.get('/notifications');
       if (res.data.success) {
@@ -20,15 +20,15 @@ export const NotificationProvider = ({ children }) => {
     } catch (error) {
       console.error("Error fetching notifications:", error);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   };
 
   useEffect(() => {
     if (token && user) {
-      fetchNotifications();
-      // Poll every 30 seconds to fetch notifications (simulating real-time alerts)
-      const interval = setInterval(fetchNotifications, 30000);
+      fetchNotifications(false);
+      // Poll every 30 seconds silently in the background
+      const interval = setInterval(() => fetchNotifications(true), 30000);
       return () => clearInterval(interval);
     } else {
       setNotifications([]);

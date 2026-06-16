@@ -35,7 +35,8 @@ class AdminController extends Controller
         }
 
         $totalUsers = User::count();
-        $totalReservations = Reservation::whereBetween('date', [$startDate, $endDate])->count();
+        $totalConfirmedReservations = Reservation::whereBetween('date', [$startDate, $endDate])->where('status', 'confirmed')->count();
+        $totalCancelledReservations = Reservation::whereBetween('date', [$startDate, $endDate])->where('status', 'cancelled')->count();
         $totalRevenue = Payment::where('status', 'paid')
             ->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
             ->sum('amount');
@@ -97,7 +98,8 @@ class AdminController extends Controller
             'data' => [
                 'stats' => [
                     'total_users' => $totalUsers,
-                    'total_reservations' => $totalReservations,
+                    'total_confirmed_reservations' => $totalConfirmedReservations,
+                    'total_cancelled_reservations' => $totalCancelledReservations,
                     'total_revenue' => $totalRevenue,
                 ],
                 'popular_fields' => $popularFields,
@@ -115,7 +117,7 @@ class AdminController extends Controller
         }
 
         $perPage = min((int) $request->input('per_page', 10), 100);
-        $users = User::latest()->paginate($perPage);
+        $users = User::where('role', '!=', 'guard')->latest()->paginate($perPage);
         return response()->json([
             'success' => true,
             'data' => $users
@@ -143,6 +145,23 @@ class AdminController extends Controller
             'success' => true,
             'message' => 'User role updated successfully.',
             'data' => $user
+        ]);
+    }
+
+    public function getAllReviews(Request $request)
+    {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $perPage = min((int) $request->input('per_page', 20), 100);
+        $reviews = Review::with(['user', 'field'])
+            ->latest()
+            ->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $reviews
         ]);
     }
 

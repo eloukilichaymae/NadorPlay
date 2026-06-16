@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import client from '../../api/client';
-import { Plus, Trash2, Calendar, CheckCircle, X } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const DAYS = [
@@ -21,14 +21,51 @@ const TIME_SLOTS = [
 const emptySession = () => ({ day_of_week: 1, session_time: '18:00' });
 
 const ManageSubscriptions = () => {
-  const [fields, setFields]           = useState([]);
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [loadingList, setLoadingList] = useState(true);
+  const [fields, setFields] = useState([]);
+  const [loadingFields, setLoadingFields] = useState(true);
+
+  // Helper to format/get today's date in local time string YYYY-MM-DD
+  const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Helper to count exact occurrences of selected sessions between startDate and endDate
+  const countSessions = (startStr, endStr, sessionsList) => {
+    if (!startStr || !endStr || !sessionsList || sessionsList.length === 0) return 0;
+    let totalCount = 0;
+    
+    const [startY, startM, startD] = startStr.split('-').map(Number);
+    const [endY, endM, endD] = endStr.split('-').map(Number);
+    
+    const start = new Date(startY, startM - 1, startD);
+    const end = new Date(endY, endM - 1, endD);
+    
+    if (start > end) return 0;
+    
+    sessionsList.forEach(sess => {
+      const targetDay = parseInt(sess.day_of_week);
+      let current = new Date(start);
+      
+      const diff = (targetDay - current.getDay() + 7) % 7;
+      current.setDate(current.getDate() + diff);
+      
+      while (current <= end) {
+        totalCount++;
+        current.setDate(current.getDate() + 7);
+      }
+    });
+    
+    return totalCount;
+  };
 
   // Form state
   const [orgName, setOrgName]       = useState('');
   const [fieldId, setFieldId]       = useState('');
-  const [startDate, setStartDate]   = useState('');
+  const [startDate, setStartDate]   = useState(getTodayString());
   const [endDate, setEndDate]       = useState('');
   const [sessions, setSessions]     = useState([emptySession()]);
   const [submitting, setSubmitting] = useState(false);
@@ -36,34 +73,28 @@ const ManageSubscriptions = () => {
 
   // Auto-calculated price
   const selectedField = fields.find(f => String(f.id) === String(fieldId));
-  const weeks = (startDate && endDate)
-    ? Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (7 * 24 * 60 * 60 * 1000)))
-    : 0;
-  const totalPrice = selectedField && weeks > 0
-    ? (selectedField.price * sessions.length * weeks).toFixed(2)
+  const totalSessionsCount = countSessions(startDate, endDate, sessions);
+  const totalPrice = selectedField && totalSessionsCount > 0
+    ? (selectedField.price * totalSessionsCount).toFixed(2)
     : '';
 
-  const fetchAll = async () => {
-    setLoadingList(true);
+  const fetchFields = async () => {
+    setLoadingFields(true);
     try {
-      const [fieldsRes, subsRes] = await Promise.all([
-        client.get('/fields?per_page=100'),
-        client.get('/subscriptions?per_page=50'),
-      ]);
+      const fieldsRes = await client.get('/fields?per_page=100');
       if (fieldsRes.data.success) {
-        const list = fieldsRes.data.data.data || [];
+        const list = (fieldsRes.data.data.data || []).filter(f => f.status === 'available');
         setFields(list);
         if (list.length > 0 && !fieldId) setFieldId(String(list[0].id));
       }
-      if (subsRes.data.success) setSubscriptions(subsRes.data.data.data || []);
     } catch (err) {
-      toast.error('Failed to load data.');
+      toast.error('Failed to load fields.');
     } finally {
-      setLoadingList(false);
+      setLoadingFields(false);
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchFields(); }, []);
 
   const addSession    = () => setSessions(prev => [...prev, emptySession()]);
   const removeSession = (i) => setSessions(prev => prev.filter((_, idx) => idx !== i));
@@ -91,7 +122,6 @@ const ManageSubscriptions = () => {
         setResult(res.data);
         toast.success(res.data.message);
         setOrgName(''); setStartDate(''); setEndDate(''); setSessions([emptySession()]);
-        fetchAll();
       }
     } catch (err) {
       const errors = err.response?.data?.errors;
@@ -101,17 +131,6 @@ const ManageSubscriptions = () => {
       setSubmitting(false);
     }
   };
-
-  const handleCancel = async (id) => {
-    if (!window.confirm('Cancel this subscription?')) return;
-    try {
-      const res = await client.post(`/subscriptions/${id}/cancel`);
-      if (res.data.success) { toast.success('Subscription cancelled.'); fetchAll(); }
-    } catch { toast.error('Failed to cancel subscription.'); }
-  };
-
-  const statusClass = (s) =>
-    s === 'active' ? 'badge-success' : s === 'cancelled' ? 'badge-danger' : 'badge-pending';
 
   return (
     <div style={{ animation: 'fadeIn 0.5s ease-out', textAlign: 'left' }}>
@@ -147,7 +166,7 @@ const ManageSubscriptions = () => {
 
             {/* Field */}
             <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Field</label>
+              <label className="form-label">Field <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: '400' }}>(available only)</span></label>
               <select className="form-input" value={fieldId} onChange={e => setFieldId(e.target.value)} required>
                 <option value="">-- Select field --</option>
                 {fields.map(f => (
@@ -163,6 +182,7 @@ const ManageSubscriptions = () => {
                 type="date"
                 className="form-input"
                 value={startDate}
+                min={getTodayString()}
                 onChange={e => setStartDate(e.target.value)}
                 required
               />
@@ -175,7 +195,7 @@ const ManageSubscriptions = () => {
                 type="date"
                 className="form-input"
                 value={endDate}
-                min={startDate}
+                min={startDate || getTodayString()}
                 onChange={e => setEndDate(e.target.value)}
                 required
               />
@@ -190,22 +210,24 @@ const ManageSubscriptions = () => {
                 <Plus size={14} /> Add Session
               </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.5rem' }}>
               {sessions.map((sess, i) => (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.6rem', alignItems: 'center', padding: '0.75rem', background: 'rgba(16,185,129,0.05)', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.15)' }}>
-                  <select className="form-input" style={{ margin: 0 }} value={sess.day_of_week} onChange={e => updateSession(i, 'day_of_week', parseInt(e.target.value))}>
-                    {DAYS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-                  </select>
-                  <select className="form-input" style={{ margin: 0 }} value={sess.session_time} onChange={e => updateSession(i, 'session_time', e.target.value)}>
-                    {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', padding: '0.35rem 0.6rem', background: 'rgba(255,255,255,0.01)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flex: 1 }}>
+                    <select className="form-input" style={{ margin: 0, padding: '0.35rem 0.5rem', fontSize: '0.85rem', height: '34px', flex: 1 }} value={sess.day_of_week} onChange={e => updateSession(i, 'day_of_week', parseInt(e.target.value))}>
+                      {DAYS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                    </select>
+                    <select className="form-input" style={{ margin: 0, padding: '0.35rem 0.5rem', fontSize: '0.85rem', height: '34px', flex: 1 }} value={sess.session_time} onChange={e => updateSession(i, 'session_time', e.target.value)}>
+                      {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeSession(i)}
                     disabled={sessions.length === 1}
-                    style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--danger)', border: 'none', borderRadius: '6px', padding: '0.5rem', cursor: sessions.length === 1 ? 'not-allowed' : 'pointer', opacity: sessions.length === 1 ? 0.4 : 1 }}
+                    style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--danger)', border: 'none', borderRadius: '6px', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: sessions.length === 1 ? 'not-allowed' : 'pointer', opacity: sessions.length === 1 ? 0.4 : 1, flexShrink: 0 }}
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               ))}
@@ -215,8 +237,8 @@ const ManageSubscriptions = () => {
           {/* Auto-calculated Price */}
           <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px', padding: '1rem 1.25rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
             <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
-              {selectedField && weeks > 0
-                ? <>{selectedField.price} MAD/hr × {sessions.length} session{sessions.length > 1 ? 's' : ''}/week × {weeks} week{weeks > 1 ? 's' : ''}</>
+              {selectedField && totalSessionsCount > 0
+                ? <>{selectedField.price} MAD/hr × {totalSessionsCount} session{totalSessionsCount > 1 ? 's' : ''} total</>
                 : 'Select a field and dates to calculate price'}
             </div>
             <div style={{ fontWeight: '700', fontSize: '1.3rem', color: totalPrice ? '#34d399' : 'var(--text-muted)' }}>
@@ -235,80 +257,13 @@ const ManageSubscriptions = () => {
             <CheckCircle size={20} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
               <strong style={{ color: '#fff', display: 'block', marginBottom: '0.25rem' }}>{result.message}</strong>
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>The subscription has been saved and is now active.</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                The subscription is now active. View generated bookings under <strong style={{ color: 'var(--primary)' }}>Manage Bookings → Organization Subscriptions</strong>.
+              </span>
             </div>
             <button onClick={() => setResult(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', marginLeft: 'auto' }}>
               <X size={16} />
             </button>
-          </div>
-        )}
-      </div>
-
-      {/* ── All Subscriptions Table ── */}
-      <div className="glass" style={{ padding: '2rem' }}>
-        <h3 style={{ color: '#fff', marginBottom: '1.5rem' }}>All Subscriptions</h3>
-
-        {loadingList ? (
-          <div style={{ textAlign: 'center', padding: '2rem' }}>
-            <div style={{ width: '36px', height: '36px', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#10b981', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
-          </div>
-        ) : subscriptions.length === 0 ? (
-          <div className="text-center" style={{ padding: '3rem 0' }}>
-            <Calendar size={36} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
-            <p style={{ color: 'var(--text-muted)' }}>No subscriptions yet. Create one above.</p>
-          </div>
-        ) : (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Organization</th>
-                  <th>Field</th>
-                  <th>Period</th>
-                  <th>Sessions / Week</th>
-                  <th>Total Price</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptions.map(sub => (
-                  <tr key={sub.id}>
-                    <td>#{sub.id}</td>
-                    <td><strong>{sub.organization_name || '—'}</strong></td>
-                    <td>{sub.field?.name}</td>
-                    <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                      {new Date(sub.start_date).toLocaleDateString()} → {new Date(sub.end_date).toLocaleDateString()}
-                    </td>
-                    <td>
-                      {sub.sessions?.length > 0 ? (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
-                          {sub.sessions.map(s => (
-                            <span key={s.id} className="badge badge-info" style={{ fontSize: '0.65rem' }}>
-                              {DAYS.find(d => d.value === s.day_of_week)?.label ?? `Day ${s.day_of_week}`} {s.session_time?.substring(0,5)}
-                            </span>
-                          ))}
-                        </div>
-                      ) : '—'}
-                    </td>
-                    <td><strong style={{ color: 'var(--primary)' }}>{sub.total_price} MAD</strong></td>
-                    <td><span className={`badge ${statusClass(sub.status)}`}>{sub.status}</span></td>
-                    <td style={{ textAlign: 'right' }}>
-                      {sub.status !== 'cancelled' && (
-                        <button
-                          onClick={() => handleCancel(sub.id)}
-                          className="btn btn-secondary"
-                          style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.3)' }}
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
       </div>

@@ -53,6 +53,9 @@ class ReservationController extends Controller
         if ($request->has('check_in_status') && $request->check_in_status != '') {
             $query->where('check_in_status', $request->check_in_status);
         }
+        if ($request->has('reservation_type') && $request->reservation_type != '') {
+            $query->where('reservation_type', $request->reservation_type);
+        }
 
         $reservations = $query->orderBy('date', 'desc')->orderBy('time', 'asc')->paginate(10);
 
@@ -64,6 +67,11 @@ class ReservationController extends Controller
 
     public function store(Request $request)
     {
+        $user = $request->user();
+        if ($user->role !== 'admin') {
+            $request->merge(['duration' => 1]);
+        }
+
         $validator = Validator::make($request->all(), [
             'field_id'         => 'required|exists:fields,id',
             'date'             => 'required|date|after_or_equal:today',
@@ -101,26 +109,13 @@ class ReservationController extends Controller
             ], 400);
         }
 
-        $newStart = Carbon::parse($date . ' ' . $time);
-        $newEnd   = (clone $newStart)->addHours($duration);
-
-        $existingReservations = Reservation::where('field_id', $fieldId)
-            ->where('date', $date)
-            ->where('status', '!=', 'cancelled')
-            ->get();
-
-        foreach ($existingReservations as $exist) {
-            $existStart = Carbon::parse($exist->date->format('Y-m-d') . ' ' . $exist->time);
-            $existEnd   = (clone $existStart)->addHours($exist->duration);
-            if ($newStart->lt($existEnd) && $newEnd->gt($existStart)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Time slot conflict. Field already reserved from ' . $existStart->format('H:i') . ' to ' . $existEnd->format('H:i') . '.'
-                ], 400);
-            }
+        if (Reservation::hasConflict($fieldId, $date, $time, $duration)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Time slot conflict. The selected time slot is already booked.'
+            ], 400);
         }
 
-        $user       = $request->user();
         $targetUser = ($user->role === 'admin' && $request->filled('user_id'))
             ? \App\Models\User::find($request->user_id)
             : $user;
@@ -174,15 +169,20 @@ class ReservationController extends Controller
 
     public function cancel(Request $request, $id)
     {
-        $reservation = Reservation::find($id);
+        $reservation = Reservation::with('field')->find($id);
 
         if (!$reservation) {
             return response()->json(['success' => false, 'message' => 'Reservation not found'], 404);
         }
 
         $user = $request->user();
-        if ($user->role === 'user' && $reservation->user_id !== $user->id) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized action'], 403);
+        if ($user->role === 'user') {
+            if ($reservation->user_id !== $user->id) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized action'], 403);
+            }
+            if ($reservation->status !== 'pending') {
+                return response()->json(['success' => false, 'message' => 'Only pending reservations can be cancelled.'], 400);
+            }
         }
 
         if ($reservation->status === 'cancelled') {
@@ -194,10 +194,14 @@ class ReservationController extends Controller
             'payment_status' => $reservation->payment_status === 'paid' ? 'refunded' : $reservation->payment_status
         ]);
 
+        $fieldName = $reservation->field->name ?? "Field #{$reservation->field_id}";
+        $dateStr   = $reservation->date->format('Y-m-d');
+        $timeStr   = substr($reservation->time, 0, 5);
+
         Notification::create([
             'user_id' => $reservation->user_id,
             'title'   => 'Reservation Cancelled',
-            'message' => "Your reservation for field #{$reservation->field_id} on {$reservation->date->format('Y-m-d')} has been cancelled."
+            'message' => "Your reservation for {$fieldName} on {$dateStr} at {$timeStr} has been cancelled."
         ]);
 
         return response()->json([
@@ -243,10 +247,13 @@ class ReservationController extends Controller
             'qr_code'        => $qrPayload
         ]);
 
+        $dateStr = $reservation->date->format('Y-m-d');
+        $timeStr = substr($reservation->time, 0, 5);
+
         Notification::create([
             'user_id' => $reservation->user_id,
-            'title'   => 'Reservation Approved',
-            'message' => 'Your reservation has been accepted.'
+            'title'   => 'Reservation Confirmed ✅',
+            'message' => "Your reservation for {$reservation->field->name} on {$dateStr} at {$timeStr} has been confirmed. Please proceed with payment to finalise your booking."
         ]);
 
         return response()->json([

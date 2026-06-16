@@ -4,8 +4,19 @@ import client from '../api/client';
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('np_token') || null);
+  const [user, setUser] = useState(() => {
+    const savedToken = localStorage.getItem('np_token');
+    const savedUser = localStorage.getItem('np_user');
+    if (savedToken && savedUser) {
+      try {
+        return JSON.parse(savedUser);
+      } catch (error) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

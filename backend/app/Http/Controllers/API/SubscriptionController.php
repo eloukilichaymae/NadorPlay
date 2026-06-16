@@ -79,6 +79,20 @@ class SubscriptionController extends Controller
             ], 422);
         }
 
+        $conflict = self::checkSubscriptionConflict(
+            $request->field_id,
+            $request->start_date,
+            $request->end_date,
+            $request->sessions
+        );
+
+        if ($conflict) {
+            return response()->json([
+                'success' => false,
+                'message' => $conflict
+            ], 400);
+        }
+
         $field = Field::find($request->field_id);
 
         $subscription = Subscription::create([
@@ -99,9 +113,11 @@ class SubscriptionController extends Controller
             ]);
         }
 
+        $generatedCount = $this->generateReservations($subscription);
+
         return response()->json([
             'success' => true,
-            'message' => "Subscription created successfully for {$request->organization_name}.",
+            'message' => "Subscription created successfully for {$request->organization_name}. {$generatedCount} sessions generated.",
             'data' => [
                 'subscription' => $subscription->load('sessions'),
             ]
@@ -132,11 +148,36 @@ class SubscriptionController extends Controller
             ], 422);
         }
 
+        $conflict = self::checkSubscriptionConflict(
+            $request->field_id,
+            $request->start_date,
+            $request->end_date,
+            $request->sessions
+        );
+
+        if ($conflict) {
+            return response()->json([
+                'success' => false,
+                'message' => $conflict
+            ], 400);
+        }
+
         $field      = Field::find($request->field_id);
         $startDate  = Carbon::parse($request->start_date);
         $endDate    = Carbon::parse($request->end_date);
-        $weeks      = max(1, $startDate->diffInWeeks($endDate));
-        $totalPrice = $weeks * count($request->sessions) * $field->price * 0.85;
+
+        $totalSessions = 0;
+        foreach ($request->sessions as $sess) {
+            $dayOfWeek   = (int) $sess['day_of_week'];
+            $diff        = ($dayOfWeek - $startDate->dayOfWeek + 7) % 7;
+            $sessionDate = $startDate->copy()->addDays($diff);
+
+            while ($sessionDate->lte($endDate)) {
+                $totalSessions++;
+                $sessionDate->addWeek();
+            }
+        }
+        $totalPrice = $totalSessions * $field->price * 0.85;
 
         $subscription = Subscription::create([
             'organization_id'   => $user->id,
@@ -230,11 +271,56 @@ class SubscriptionController extends Controller
 
         $subscription->update(['status' => 'active']);
 
+        $generatedCount = $this->generateReservations($subscription);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Subscription activated successfully. {$generatedCount} sessions generated.",
+            'data'    => $subscription
+        ]);
+    }
+
+    public static function checkSubscriptionConflict($fieldId, $startDate, $endDate, $sessions)
+    {
+        $start = Carbon::parse($startDate);
+        $end   = Carbon::parse($endDate);
+
+        foreach ($sessions as $sess) {
+            $dayOfWeek   = (int) $sess['day_of_week'];
+            $sessionTime = $sess['session_time'];
+
+            $diff        = ($dayOfWeek - $start->dayOfWeek + 7) % 7;
+            $sessionDate = $start->copy()->addDays($diff);
+
+            while ($sessionDate->lte($end)) {
+                $dateStr = $sessionDate->format('Y-m-d');
+
+                if (Reservation::hasConflict($fieldId, $dateStr, $sessionTime, 1)) {
+                    return "Conflict detected on {$dateStr} at {$sessionTime} with an existing reservation or active subscription.";
+                }
+
+                $sessionDate->addWeek();
+            }
+        }
+
+        return null;
+    }
+
+    private function generateReservations(Subscription $subscription): int
+    {
         // Generate reservations for each session (skips dates that already have one)
         $startDate      = Carbon::parse($subscription->start_date);
         $endDate        = Carbon::parse($subscription->end_date);
         $generatedCount = 0;
-        $orgName        = $subscription->organization_name ?? $subscription->organization->name;
+        $orgName        = $subscription->organization_name ?? ($subscription->organization ? $subscription->organization->name : 'Organization');
+
+        // Load relations if not loaded
+        if (!$subscription->relationLoaded('sessions')) {
+            $subscription->load('sessions');
+        }
+        if (!$subscription->relationLoaded('field')) {
+            $subscription->load('field');
+        }
 
         foreach ($subscription->sessions as $sess) {
             $dayOfWeek   = (int) $sess->day_of_week;
@@ -262,7 +348,7 @@ class SubscriptionController extends Controller
                         ->where('status', '!=', 'cancelled')
                         ->get() as $res) {
                         $resStart = Carbon::parse($res->date->format('Y-m-d') . ' ' . $res->time);
-                        $resEnd   = $resStart->copy()->addHours($res->duration ?? 1);
+                        $resEnd = $resStart->copy()->addHours($res->duration ?? 1);
                         if ($sessStart->lt($resEnd) && $sessEnd->gt($resStart)) {
                             $hasConflict = true;
                             break;
@@ -271,7 +357,7 @@ class SubscriptionController extends Controller
 
                     if (!$hasConflict) {
                         $reservation = Reservation::create([
-                            'user_id'           => $subscription->organization_id,
+                            'user_id'           => $subscription->organization_id, // can be null
                             'field_id'          => $subscription->field_id,
                             'subscription_id'   => $subscription->id,
                             'reservation_type'  => 'subscription',
@@ -302,16 +388,14 @@ class SubscriptionController extends Controller
             }
         }
 
-        Notification::create([
-            'user_id' => $subscription->organization_id,
-            'title'   => 'Subscription Activated',
-            'message' => "Your subscription for {$subscription->field->name} has been activated. {$generatedCount} sessions have been scheduled."
-        ]);
+        if ($subscription->organization_id) {
+            Notification::create([
+                'user_id' => $subscription->organization_id,
+                'title'   => 'Subscription Activated',
+                'message' => "Your subscription for {$subscription->field->name} has been activated. {$generatedCount} sessions have been scheduled."
+            ]);
+        }
 
-        return response()->json([
-            'success' => true,
-            'message' => "Subscription activated successfully. {$generatedCount} sessions generated.",
-            'data'    => $subscription
-        ]);
+        return $generatedCount;
     }
 }
